@@ -1,4 +1,3 @@
-from controller import GameController
 from gamephase import GamePhase as PHASE
 from collections import Counter
 from player import Player
@@ -10,23 +9,17 @@ class Game:
         id: int
     ):
         """
-        Initializes the Game class with the given parameters.
-        :param id: Unique identifier for the game.
-        :param phase: Current phase of the game.
-        :param players: List of players in the game. The first is the host.
-        :param game_controller: Controller for managing game logic.
-        :param missions: array of boolean values indicating if a mission is successful
-        :param team: dictionary player-boolean: the boolean represents the member's vote
-        :param turn: Current turn number.
+        Initialize the Game instance.
+        :param id: Unique identifier for the game, takes the group ID.
         """
+
         self._id: int = id
-        self.game_controller: GameController | None = None
         self.turn: int = 0
         self.missions: list[bool | None] = [None, None, None, None, None]
         self.rejection_count: int = 0
         self.team: dict[Player, bool] = {}
         self._players: list[Player] = []
-        self.phase = PHASE.LOBBY
+        self.phase: PHASE = PHASE.LOBBY
 
     def add_player(self, player: Player):
         """

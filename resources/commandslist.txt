@@ -1,0 +1,3 @@
+create - create a new lobby
+join - join a lobby
+leave - leave the lobby or game

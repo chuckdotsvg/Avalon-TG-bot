@@ -1,4 +1,4 @@
-from role import ROLE
+from role import Role as ROLE
 
 class Player:
     def __init__(self, userid, role, isleader, isteammate):

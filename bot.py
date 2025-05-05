@@ -10,6 +10,10 @@ from telegram.ext import (
     ContextTypes,
 )
 
+import controller
+from controller import handle_create_game, handle_join_game
+from game import Game
+
 _ = load_dotenv()
 telegram_token = os.getenv("TELEGRAM_TOKEN", "")
 
@@ -24,8 +28,12 @@ logger = logging.getLogger(__name__)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
+    message = update.effective_message
 
-    _ = await update.message.reply_markdown_v2(
+    if message is None or user is None:
+        return
+
+    await message.reply_markdown_v2(
         rf"Hi {user.mention_markdown_v2()}\!",
     )
 
@@ -35,16 +43,23 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     await update.message.reply_text("Help!")
 
+async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await handle_create_game(existingGames, update, context)
 
-async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Create a game"""
-    await update.message.reply_text("New game created. Waiting for people to join...\n")
+async def join_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await handle_join_game(update, existingGames)
 
+async def leave_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await controller.handle_leave_game(update, existingGames)
+
+existingGames: dict[int, Game] = {}
 
 def main() -> None:
     application = ApplicationBuilder().token(telegram_token).build()
 
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("join", join_game))
+    application.add_handler(CommandHandler("leave", join_game))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("creategame", create_game))
 
