@@ -6,6 +6,7 @@ from player import Player
 class Game:
     def __init__(
         self,
+        creator: Player,
         id: int
     ):
         """
@@ -18,7 +19,7 @@ class Game:
         self.missions: list[bool | None] = [None, None, None, None, None]
         self.rejection_count: int = 0
         self.team: dict[Player, bool] = {}
-        self._players: list[Player] = []
+        self._players: list[Player] = [creator]
         self.phase: PHASE = PHASE.LOBBY
 
     def add_player(self, player: Player):

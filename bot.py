@@ -11,7 +11,7 @@ from telegram.ext import (
 )
 
 import controller
-from controller import handle_create_game, handle_join_game
+from controller import handle_create_game, handle_join_game, handle_leave_game
 from game import Game
 
 _ = load_dotenv()
@@ -43,25 +43,28 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     await update.message.reply_text("Help!")
 
+
 async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await handle_create_game(existingGames, update, context)
+    await handle_create_game(update, existingGames)
+
 
 async def join_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await handle_join_game(update, existingGames)
 
+
 async def leave_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await controller.handle_leave_game(update, existingGames)
+    await handle_leave_game(update, existingGames)
+
 
 existingGames: dict[int, Game] = {}
+
 
 def main() -> None:
     application = ApplicationBuilder().token(telegram_token).build()
 
-    application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("join", join_game))
-    application.add_handler(CommandHandler("leave", join_game))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("creategame", create_game))
+    application.add_handler(CommandHandler("leave", leave_game))
+    application.add_handler(CommandHandler("create", create_game))
 
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 

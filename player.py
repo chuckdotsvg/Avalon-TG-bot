@@ -1,11 +1,11 @@
 from role import Role as ROLE
 
 class Player:
-    def __init__(self, userid, role, isleader, isteammate):
+    def __init__(self, userid: int):
         self.userid: int = userid
-        self.role: ROLE = role
-        self.isleader: bool = isleader
-        self.isteammate: bool = isteammate
+        self.role: ROLE | None = None
+        self.isleader: bool = False
+        self.isteammate: bool = False
 
     def __str__(self):
         return f"Player(role={self.role}, isleader={self.isleader}, isteammate={self.isteammate})"
