@@ -1,25 +1,8 @@
-import logging
-from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
+import bot
+from game import Game
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.WARNING
-)
+def add_game(new_id: int, new_game: Game, games: list[Game]):
+    games[new_id] = new_game
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="ciaone")
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-
-    """Send a message when the command /help is issued."""
-
-    await update.message.reply_text("Help!")
-
-if __name__ == '__main__':
-    application = ApplicationBuilder().token('TOKEN').build()
-    
-    start_handler = CommandHandler('start', start)
-    application.add_handler(start_handler)
-    
-    application.run_polling()
+def main():
+    games: dict[int, Game]
