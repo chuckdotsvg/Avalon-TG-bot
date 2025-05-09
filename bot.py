@@ -11,7 +11,7 @@ from telegram.ext import (
 )
 
 import controller
-from controller import handle_create_game, handle_join_game, handle_leave_game
+from controller import handle_create_game, handle_join_game, handle_leave_game, handle_start_game
 from game import Game
 
 _ = load_dotenv()
@@ -55,6 +55,8 @@ async def join_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def leave_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await handle_leave_game(update, existingGames)
 
+async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await handle_start_game(update, existingGames)
 
 existingGames: dict[int, Game] = {}
 
@@ -65,30 +67,10 @@ def main() -> None:
     application.add_handler(CommandHandler("join", join_game))
     application.add_handler(CommandHandler("leave", leave_game))
     application.add_handler(CommandHandler("create", create_game))
+    application.add_handler(CommandHandler("start", start_game))
 
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
     main()
-
-
-async def ask_for_vote(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-
-    if not user:
-        return
-
-    _ = await context.bot.send_message(
-        chat_id=user.id,
-        text="Please vote for the best option:\n1. Option A\n2. Option B\n3. Option C",
-        reply_markup=telegram.ReplyKeyboardMarkup(
-            keyboard=[
-                [telegram.KeyboardButton(text="Option A")],
-                [telegram.KeyboardButton(text="Option B")],
-                [telegram.KeyboardButton(text="Option C")],
-            ],
-            resize_keyboard=True,
-            one_time_keyboard=True,
-        ),
-    )

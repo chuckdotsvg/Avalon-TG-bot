@@ -88,3 +88,37 @@ async def handle_leave_game(update: Update, existing_games: dict[int, Game]):
         await update.message.reply_text(
             "There is no game in this group. Please create one first."
         )
+
+async def handle_start_game(update: Update, existing_games: dict[int, Game]) -> None:
+    """
+    Handle the start of the game.
+    """
+    if not update.message or not update.effective_user:
+        return
+    group_id = update.message.chat_id
+
+    # check if there is a game in the group
+    if group_id in existing_games.keys():
+        game = existing_games[group_id]
+
+        # check if the requesting user is the creator
+        if update.effective_user.id != game.creator.userid:
+            await update.message.reply_text(
+                "Only the creator can start the game."
+            )
+            return
+
+        # check if there are enough players
+        if len(game.players) < 5:
+            await update.message.reply_text(
+                "Not enough players to start the game. Minimum 5 players required."
+            )
+            return
+
+        # start the game
+        await update.message.reply_text("Game started!")
+        game.start_game()
+    else:
+        await update.message.reply_text(
+            "There is no game in this group. Please create one first."
+        )
