@@ -1,6 +1,8 @@
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import ContextTypes
+
 from game import Game
 from player import Player
-from telegram import Update
 
 
 async def handle_create_game(update: Update, existingGames: dict[int, Game]) -> None:
@@ -82,14 +84,17 @@ async def handle_leave_game(update: Update, existing_games: dict[int, Game]):
             # if there are no players left, remove the Game
             if len(game.players) == 0:
                 del existing_games[group_id]
-                await update.message.reply_text("All players have left the game. The game has been removed.")
+                await update.message.reply_text(
+                    "All players have left the game. The game has been removed."
+                )
 
     else:
         await update.message.reply_text(
             "There is no game in this group. Please create one first."
         )
 
-async def handle_start_game(update: Update, existing_games: dict[int, Game]) -> None:
+
+async def handle_start_game(update: Update, context: ContextTypes.DEFAULT_CONTEXT, existing_games: dict[int, Game]) -> None:
     """
     Handle the start of the game.
     """
@@ -103,9 +108,7 @@ async def handle_start_game(update: Update, existing_games: dict[int, Game]) -> 
 
         # check if the requesting user is the creator
         if update.effective_user.id != game.creator.userid:
-            await update.message.reply_text(
-                "Only the creator can start the game."
-            )
+            await update.message.reply_text("Only the creator can start the game.")
             return
 
         # check if there are enough players
@@ -118,6 +121,57 @@ async def handle_start_game(update: Update, existing_games: dict[int, Game]) -> 
         # start the game
         await update.message.reply_text("Game started!")
         game.start_game()
+
+        # send to every player their role
+        for player in game.players:
+            await context.bot.send_message(
+                chat_id=player.userid,
+                text=f"Your role is: {player.role.name}.\n",
+            )
+    else:
+        await update.message.reply_text(
+            "There is no game in this group. Please create one first."
+        )
+
+
+async def handle_vote(update: Update, existing_games: dict[int, Game]) -> None:
+    """
+    Handle a player voting.
+    """
+    if not update.message or not update.effective_user:
+        return
+    group_id = update.message.chat_id
+
+    # check if there is a game in the group
+    if group_id in existing_games.keys():
+        game = existing_games[group_id]
+
+        # check if the requesting user is a player
+        if (player := game.lookup_player(update.effective_user.id)) is None:
+            await update.message.reply_text(
+                "You are not in the game. Please join first."
+            )
+            return
+
+        # check if the game is in progress
+        if not game.in_progress:
+            await update.message.reply_text(
+                "The game is not in progress. Please start the game first."
+            )
+            return
+
+        # handle voting logic here
+        keyboard = [
+            [
+                InlineKeyboardButton("yes", callback_data=True),
+                InlineKeyboardButton("no", callback_data=False),
+            ]
+        ]
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            "Do you want to make the mission successful?", reply_markup=reply_markup
+        )
     else:
         await update.message.reply_text(
             "There is no game in this group. Please create one first."

@@ -15,3 +15,6 @@ class Role(Enum):
 
     def __getitem__(self, index: int):
         return self.value[index]
+
+    def __str__(self):
+        return self.value[0]

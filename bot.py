@@ -6,12 +6,18 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
+    CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
 )
 
 import controller
-from controller import handle_create_game, handle_join_game, handle_leave_game, handle_start_game
+from controller import (
+    handle_create_game,
+    handle_join_game,
+    handle_leave_game,
+    handle_start_game,
+)
 from game import Game
 
 _ = load_dotenv()
@@ -55,8 +61,18 @@ async def join_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def leave_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await handle_leave_game(update, existingGames)
 
+
 async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await handle_start_game(update, existingGames)
+
+async def test_private_msg_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send a message when the command /test is issued."""
+    for user in existingGames[update.effective_chat.id].players:
+        await context.bot.send_message(
+            chat_id=user.userid,
+            text="This is a test message to all players in the game.",
+        )
+
 
 existingGames: dict[int, Game] = {}
 
@@ -68,7 +84,9 @@ def main() -> None:
     application.add_handler(CommandHandler("leave", leave_game))
     application.add_handler(CommandHandler("create", create_game))
     application.add_handler(CommandHandler("start", start_game))
+    application.add_handler(CommandHandler("pvtbroadcast", test_private_msg_broadcast))
 
+    # application.add_handler(CallbackQueryHandler(button))
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
