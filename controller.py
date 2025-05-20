@@ -1,5 +1,19 @@
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ContextTypes
+from ctypes import cast
+import json
+from telegram import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Update,
+    Poll,
+)
+from telegram.ext import (
+    ContextTypes,
+    PollHandler,
+    PollAnswerHandler,
+    MessageHandler,
+    filters,
+)
 
 from game import Game
 from player import Player
@@ -94,7 +108,11 @@ async def handle_leave_game(update: Update, existing_games: dict[int, Game]):
         )
 
 
-async def handle_start_game(update: Update, context: ContextTypes.DEFAULT_CONTEXT, existing_games: dict[int, Game]) -> None:
+async def handle_start_game(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    existing_games: dict[int, Game],
+) -> None:
     """
     Handle the start of the game.
     """
@@ -134,9 +152,11 @@ async def handle_start_game(update: Update, context: ContextTypes.DEFAULT_CONTEX
         )
 
 
-async def handle_vote(update: Update, existing_games: dict[int, Game]) -> None:
+async def handle_vote(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, existing_games: dict[int, Game]
+) -> None:
     """
-    Handle a player voting.
+    Handle team member decision for the mission.
     """
     if not update.message or not update.effective_user:
         return
@@ -153,26 +173,91 @@ async def handle_vote(update: Update, existing_games: dict[int, Game]) -> None:
             )
             return
 
-        # check if the game is in progress
-        if not game.in_progress:
-            await update.message.reply_text(
-                "The game is not in progress. Please start the game first."
-            )
-            return
+        # TODO: check if the game is in the voting phase
 
-        # handle voting logic here
+        # check if the game is in progress
+        # if not game.in_progress:
+        #     await update.message.reply_text(
+        #         "The game is not in progress. Please start the game first."
+        #     )
+        #     return
+
         keyboard = [
             [
-                InlineKeyboardButton("yes", callback_data=True),
-                InlineKeyboardButton("no", callback_data=False),
+                InlineKeyboardButton(
+                    vote, callback_data=json.dumps({"vote": vote, "gid": game.id})
+                )
+                for vote in ["yes", "no"]
             ]
         ]
 
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(
-            "Do you want to make the mission successful?", reply_markup=reply_markup
-        )
+
+        for player in game.players:
+            await context.bot.send_message(
+                chat_id=player.userid,
+                text="Do you want to make the mission successful?",
+                reply_markup=reply_markup,
+            )
     else:
         await update.message.reply_text(
             "There is no game in this group. Please create one first."
         )
+
+
+async def button_vote_handler(query: CallbackQuery, game: Game) -> None:
+    if not query.data:
+        return
+
+    data = json.loads(query.data)
+    vote = data.get("vote")
+    game.add_player_vote(
+        game.lookup_player(query.from_user.id),
+        # query.data is a string, so we need to convert it to a boolean
+        vote == "yes",
+    )
+
+    # reply to the user
+    await query.edit_message_text(
+        text=f"Your vote has been recorded: {vote}, you can go back to the game.",
+        reply_markup=None,
+    )
+
+
+async def handle_build_team_request(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, existing_games: dict[int, Game]
+) -> None:
+    """
+    Handle a player building a team.
+    """
+    game = existing_games[update.effective_chat.id]
+
+    await context.bot.send_poll(
+        game.players[game.leader_idx].userid,
+        f"Select a team of {game.team_sizes[game.turn]} players",
+        [
+            (await update.effective_chat.get_member(x.userid)).user.full_name
+            for x in game.players
+        ],
+        is_anonymous=False,
+        allows_multiple_answers=True,
+    )
+
+
+async def handle_build_team_answer(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, existing_games: dict[int, Game]
+) -> None:
+    """
+    Handle the answer to the team building poll.
+    """
+
+    answer_team = update.poll_answer
+    game = existing_games[update.effective_chat.id]
+
+    # TODO: replace message with warning
+    if len(answer_team.option_ids) != game.team_sizes[game.turn]:
+        await context.bot.send_message(
+            chat_id=update.effective_user.id,
+            text=f"You have selected {len(answer_team.option_ids)} players, but you need to select {game.team_sizes[game.turn]} players.",
+        )
+        return

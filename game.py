@@ -81,10 +81,10 @@ class Game:
         self.team[player] = vote
 
         if None not in self.team.values():
+            # TODO: call phase handler to manage the next phase
             pass
-            # call phase handler to manage the next phase
 
-    def lookup_player(self, id: int) -> Player | None:
+    def lookup_player(self, id: int) -> Player:
         """
         Looks up a player by their ID.
         :param id: ID of the player to look up.
@@ -93,7 +93,8 @@ class Game:
         for player in self.players:
             if player.userid == id:
                 return player
-        return None
+
+        raise ValueError(f"Player with ID {id} not found in the game.")
 
     # helpers
     def set_needed_team_members(self, team: list[tuple[str, bool]]):
@@ -136,8 +137,8 @@ class Game:
         Assigns roles to players based on the game rules.
         """
         num_players = len(self.players)
-        num_of_servants = constants.playersToRules[len(self.players)][1] - [x[1] for x in self.special_roles].count(True)
-        num_of_minions = len(self.players) - num_of_servants - len(self.special_roles)
+        num_of_servants = constants.playersToRules[num_players][1] - [x[1] for x in self.special_roles].count(True)
+        num_of_minions = num_players - num_of_servants - len(self.special_roles)
 
         i = 0
         j = 0
