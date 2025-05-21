@@ -1,9 +1,11 @@
 from ctypes import cast
 import json
+from tokenize import group
 from telegram import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    PollAnswer,
     Update,
     Poll,
 )
@@ -206,13 +208,13 @@ async def handle_vote(
 
 
 async def button_vote_handler(query: CallbackQuery, game: Game) -> None:
-    if not query.data:
+    if not query.data or not (voter := game.lookup_player(query.from_user.id)):
         return
 
     data = json.loads(query.data)
     vote = data.get("vote")
     game.add_player_vote(
-        game.lookup_player(query.from_user.id),
+        voter,
         # query.data is a string, so we need to convert it to a boolean
         vote == "yes",
     )
@@ -230,34 +232,47 @@ async def handle_build_team_request(
     """
     Handle a player building a team.
     """
-    game = existing_games[update.effective_chat.id]
+    if not (group_chat := update.effective_chat) or not (
+        game := existing_games.get(group_chat.id)
+    ):
+        return
 
-    await context.bot.send_poll(
+    message = await context.bot.send_poll(
         game.players[game.leader_idx].userid,
         f"Select a team of {game.team_sizes[game.turn]} players",
-        [
-            (await update.effective_chat.get_member(x.userid)).user.full_name
-            for x in game.players
-        ],
+        [(await group_chat.get_member(x.userid)).user.full_name for x in game.players],
         is_anonymous=False,
         allows_multiple_answers=True,
     )
 
+    # we associate to each poll the game id that it belongs to
+    if not (poll := message.poll):
+        return
+
+    context.bot_data[poll.id] = group_chat.id
+
 
 async def handle_build_team_answer(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, existing_games: dict[int, Game]
+    answer_team: PollAnswer, context: ContextTypes.DEFAULT_TYPE, game: Game
 ) -> None:
     """
     Handle the answer to the team building poll.
     """
 
-    answer_team = update.poll_answer
-    game = existing_games[update.effective_chat.id]
+    leader_userid = game.players[game.leader_idx].userid
 
     # TODO: replace message with warning
-    if len(answer_team.option_ids) != game.team_sizes[game.turn]:
+    if (voted_team_size := len(answer_team.option_ids)) != game.team_sizes[game.turn]:
         await context.bot.send_message(
-            chat_id=update.effective_user.id,
-            text=f"You have selected {len(answer_team.option_ids)} players, but you need to select {game.team_sizes[game.turn]} players.",
+            chat_id=leader_userid,
+            text=f"You have selected {voted_team_size} players, but you need to select {game.team_sizes[game.turn]} players.",
         )
         return
+    else:
+        await context.bot.send_message(
+            chat_id=leader_userid,
+            text=f"You have selected {voted_team_size} players, which is correct.",
+        )
+
+        # player order in poll has the same order as in game.players, so indexing is safe
+        game.create_team([game.players[i] for i in answer_team.option_ids])

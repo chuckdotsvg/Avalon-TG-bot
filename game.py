@@ -7,11 +7,7 @@ from player import Player
 
 
 class Game:
-    def __init__(
-        self,
-        creator: Player,
-        id: int
-    ):
+    def __init__(self, creator: Player, id: int):
         """
         Initialize the Game instance.
         :param id: Unique identifier for the game, takes the group ID.
@@ -38,7 +34,6 @@ class Game:
         :return: True if the player was added successfully, False otherwise.
         """
         self.players.append(player)
-
 
     def remove_player(self, player: Player):
         """
@@ -67,7 +62,8 @@ class Game:
         :return: True if the vote is successful, False otherwise
         """
 
-        result = votes.count(True) >= len(votes) / 2
+        # if player count is 7 or more, good win if there are 2 or less false votes
+        result = votes.count(False) <= (self.turn == 4 and len(self.players) >= 7)
         self.rejection_count += result
 
         return result
@@ -84,7 +80,7 @@ class Game:
             # TODO: call phase handler to manage the next phase
             pass
 
-    def lookup_player(self, id: int) -> Player:
+    def lookup_player(self, id: int) -> Player | None:
         """
         Looks up a player by their ID.
         :param id: ID of the player to look up.
@@ -94,7 +90,7 @@ class Game:
             if player.userid == id:
                 return player
 
-        raise ValueError(f"Player with ID {id} not found in the game.")
+        return None
 
     # helpers
     def set_needed_team_members(self, team: list[tuple[str, bool]]):
@@ -137,7 +133,9 @@ class Game:
         Assigns roles to players based on the game rules.
         """
         num_players = len(self.players)
-        num_of_servants = constants.playersToRules[num_players][1] - [x[1] for x in self.special_roles].count(True)
+        num_of_servants = constants.playersToRules[num_players][1] - [
+            x[1] for x in self.special_roles
+        ].count(True)
         num_of_minions = num_players - num_of_servants - len(self.special_roles)
 
         i = 0

@@ -10,11 +10,13 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
+    PollAnswerHandler,
 )
 
 import controller
 from controller import (
     button_vote_handler,
+    handle_build_team_answer,
     handle_build_team_request,
     handle_create_game,
     handle_join_game,
@@ -101,20 +103,40 @@ async def button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if (
         not query.message
         or not query.message.chat
-        or not (game := existingGames.get(data["gid"]))
+        or not (game := existingGames.get(data.get("gid")))
     ):
         return
 
     await button_vote_handler(query, game)
 
 
+async def receive_poll_answer(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Handle poll answers."""
+    if not (poll_answer := update.poll_answer):
+        return
+
+    # check if the poll is in the bot data
+    if not (
+        game := existingGames.get(int(context.bot_data.get(poll_answer.poll_id) or 0))
+    ):
+        return
+
+    await handle_build_team_answer(poll_answer, context, game)
+
+
+async def receive_poll_request(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    await handle_build_team_request(update, context, existingGames)
+
+
 existingGames: dict[int, Game] = {}
 
 
 def main() -> None:
-    application = (
-        ApplicationBuilder().token(telegram_token).build()
-    )
+    application = ApplicationBuilder().token(telegram_token).build()
 
     application.add_handler(CommandHandler("join", join_game))
     application.add_handler(CommandHandler("leave", leave_game))
@@ -122,6 +144,9 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start_game))
     application.add_handler(CommandHandler("pvtbroadcast", test_private_msg_broadcast))
     application.add_handler(CommandHandler("testvote", test_vote))
+    application.add_handler(CommandHandler("buildteam", receive_poll_request))
+
+    application.add_handler(PollAnswerHandler(receive_poll_answer))
 
     application.add_handler(CallbackQueryHandler(button_vote))
     application.run_polling(allowed_updates=Update.ALL_TYPES)
