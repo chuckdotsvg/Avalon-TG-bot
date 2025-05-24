@@ -10,7 +10,10 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
+    ConversationHandler,
+    MessageHandler,
     PollAnswerHandler,
+    filters,
 )
 
 import controller
@@ -25,6 +28,7 @@ from controller import (
     handle_vote,
 )
 from game import Game
+from gamephase import GamePhase as PHASE
 
 _ = load_dotenv()
 telegram_token = os.getenv("TELEGRAM_TOKEN", "")
@@ -56,19 +60,19 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text("Help!")
 
 
-async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await handle_create_game(update, existingGames)
 
 
-async def join_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await handle_join_game(update, existingGames)
+async def join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await handle_join_game(update, context, existingGames)
 
 
 async def leave_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await handle_leave_game(update, existingGames)
 
 
-async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await handle_start_game(update, context, existingGames)
 
 
@@ -132,23 +136,39 @@ async def receive_poll_request(
     await handle_build_team_request(update, context, existingGames)
 
 
+# async def unknown_command_in_state(
+#     update: Update, context: ContextTypes.DEFAULT_TYPE
+# ) -> PHASE:
+#     """Handle unknown commands in a state."""
+#     if not (message := update.message) or not (chat := message.chat):
+#         # error in telegram: restart
+#         return PHASE.LOBBY
+#
+#     if not (game := existingGames.get(chat.id)):
+#         return PHASE.LOBBY
+#
+#     await message.reply_text("You can't use this command now!")
+#     return game.phase
+
+
 existingGames: dict[int, Game] = {}
 
 
 def main() -> None:
     application = ApplicationBuilder().token(telegram_token).build()
 
-    application.add_handler(CommandHandler("join", join_game))
-    application.add_handler(CommandHandler("leave", leave_game))
-    application.add_handler(CommandHandler("create", create_game))
-    application.add_handler(CommandHandler("start", start_game))
-    application.add_handler(CommandHandler("pvtbroadcast", test_private_msg_broadcast))
-    application.add_handler(CommandHandler("testvote", test_vote))
-    application.add_handler(CommandHandler("buildteam", receive_poll_request))
-
-    application.add_handler(PollAnswerHandler(receive_poll_answer))
+    # application.add_handler(CommandHandler("pvtbroadcast", test_private_msg_broadcast))
+    # application.add_handler(CommandHandler("testvote", test_vote))
+    # application.add_handler(CommandHandler("buildteam", receive_poll_request))
 
     application.add_handler(CallbackQueryHandler(button_vote))
+    application.add_handler(CommandHandler("create", create_game))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("join", join_game))
+    application.add_handler(CommandHandler("leave", leave_game))
+    application.add_handler(PollAnswerHandler(receive_poll_answer))
+
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

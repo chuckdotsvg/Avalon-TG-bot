@@ -15,7 +15,7 @@ class Game:
         """
 
         self._id: int = id
-        self.turn: int = 0
+        self.turn: int = 9
         self.missions: list[bool | None] = [None, None, None, None, None]
         self.rejection_count: int = 0
         self.votes: list[bool] = []
@@ -101,7 +101,7 @@ class Game:
         Changes the phase of the game based on the current phase.
         Called at the end of each phase.
         """
-        if self.phase == PHASE.TEAM_SELECTION:
+        if self.phase == PHASE.TEAM_BUILD:
             self.phase = PHASE.QUEST_PHASE
             # fai cose
         elif self.phase == PHASE.QUEST_PHASE:
@@ -111,7 +111,7 @@ class Game:
                 else:
                     self.phase = PHASE.LAST_CHANCE
             else:
-                self.phase = PHASE.TEAM_SELECTION
+                self.phase = PHASE.TEAM_BUILD
 
     def start_game(self):
         """
@@ -120,7 +120,7 @@ class Game:
         num_players = len(self.players)
 
         self.team_sizes = constants.playersToRules[num_players][0]
-        self.phase = PHASE.TEAM_SELECTION
+        self.phase = PHASE.TEAM_BUILD
 
         # assign roles
         self.set_roles()

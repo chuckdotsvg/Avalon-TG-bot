@@ -1,24 +1,18 @@
-from ctypes import cast
 import json
-from tokenize import group
 from telegram import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     PollAnswer,
     Update,
-    Poll,
 )
 from telegram.ext import (
     ContextTypes,
-    PollHandler,
-    PollAnswerHandler,
-    MessageHandler,
-    filters,
 )
 
 from game import Game
 from player import Player
+from gamephase import GamePhase as PHASE
 
 
 async def handle_create_game(update: Update, existingGames: dict[int, Game]) -> None:
@@ -44,33 +38,46 @@ async def handle_create_game(update: Update, existingGames: dict[int, Game]) -> 
         )
 
 
-async def handle_join_game(update: Update, existing_games: dict[int, Game]) -> None:
+async def handle_join_game(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, existing_games: dict[int, Game]
+) -> PHASE:
     """
     Handle a player joining an existing game.
+    :return: the new game state after the player has joined
     """
+    # suppose lobby isn't full
+    new_phase = PHASE.LOBBY
     if not update.message:
-        return
-    group_id = update.message.chat_id
+        # TODO: handle telegram errors
+        return new_phase
 
     # check if there is a game in the group
-    if group_id in existing_games.keys():
-        game = existing_games[group_id]
-
-        if not (user := update.effective_user):
-            return
-
-        if game.lookup_player(user.id) is None:
-            game.add_player(Player(user.id))
-            await update.message.reply_html(
-                f"{user.mention_html()} has joined the game!"
-            )
-        else:
-            await update.message.reply_text("You are already in the game!")
-            return
-    else:
+    if (group_id := update.message.chat_id) not in existing_games.keys():
         await update.message.reply_text(
             "There is no game in this group. Please create one first."
         )
+        return new_phase
+
+    game = existing_games.get( group_id )
+
+    if not (user := update.effective_user):
+        # TODO: handle telegram errors
+        return new_phase
+
+    if game.lookup_player(user.id) is None:
+        game.add_player(Player(user.id))
+        await update.message.reply_html(
+            f"{user.mention_html()} has joined the game!"
+        )
+
+    if len(game.players) == 10:
+        # the game is full, start it automatically
+        new_phase = await _routine_start_game(context, game)
+    else:
+        await update.message.reply_text("You are already in the game!")
+        return new_phase
+
+    return new_phase
 
 
 async def handle_leave_game(update: Update, existing_games: dict[int, Game]):
@@ -114,44 +121,53 @@ async def handle_start_game(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
     existing_games: dict[int, Game],
-) -> None:
+):
     """
     Handle the start of the game.
     """
     if not update.message or not update.effective_user:
+        # TODO: handle telegram errors
         return
-    group_id = update.message.chat_id
 
     # check if there is a game in the group
-    if group_id in existing_games.keys():
-        game = existing_games[group_id]
-
-        # check if the requesting user is the creator
-        if update.effective_user.id != game.creator.userid:
-            await update.message.reply_text("Only the creator can start the game.")
-            return
-
-        # check if there are enough players
-        if len(game.players) < 5:
-            await update.message.reply_text(
-                "Not enough players to start the game. Minimum 5 players required."
-            )
-            return
-
-        # start the game
-        await update.message.reply_text("Game started!")
-        game.start_game()
-
-        # send to every player their role
-        for player in game.players:
-            await context.bot.send_message(
-                chat_id=player.userid,
-                text=f"Your role is: {player.role.name}.\n",
-            )
-    else:
+    if ( group_id := update.message.chat_id ) not in existing_games.keys():
         await update.message.reply_text(
             "There is no game in this group. Please create one first."
         )
+        return
+
+    game = existing_games[group_id]
+
+    # check if the requesting user is the creator
+    if update.effective_user.id != game.creator.userid:
+        await update.message.reply_text("Only the creator can start the game.")
+        return
+
+    # check if there are enough players
+    if len(game.players) < 5:
+        await update.message.reply_text(
+            "Not enough players to start the game. Minimum 5 players required."
+        )
+        return
+
+    await _routine_start_game(context, game)
+
+
+async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
+    # start the game
+    game.start_game()
+
+    # send to every player their role
+    for player in game.players:
+        await context.bot.send_message(
+            chat_id=player.userid,
+            text=f"Your role is: {player.role.name}.\n",
+        )
+
+    await context.bot.send_message(
+        chat_id=game.id,
+        text="The game has started! You can now start building the team.",
+    )
 
 
 async def handle_vote(
