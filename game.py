@@ -1,4 +1,5 @@
 import random
+import re
 import constants
 from role import Role as ROLE
 from gamephase import GamePhase as PHASE
@@ -21,7 +22,8 @@ class Game:
         self.votes: list[bool] = []
         self.creator: Player = creator
         self._players: list[Player] = [creator]
-        self.team: dict[Player, bool | None] = {}
+        # self.team: dict[Player, bool | None] = {}
+        self.team: list[Player] = []
         self.leader_idx: int = -1
         self.phase: PHASE = PHASE.LOBBY
         self.special_roles: list[ROLE] = [ROLE.MERLIN, ROLE.ASSASSIN]
@@ -43,42 +45,46 @@ class Game:
         self.players.remove(player)
 
     def check_winner(self) -> bool | None:
-        winner = Counter(self.missions).most_common(1)[0][0]
+        # bad win if there are 3 or more rejections too
+        return Counter(self.missions).most_common(1)[0][0] or self.rejection_count >= 3
 
-        return winner
-
-    def update_missions(self, mission_votes: list[bool]):
+    def update_missions(self):
         """
         Updates the missions with the results of the latest missions.
-        :param mission_results: List of boolean values indicating if a mission is successful
         """
-        self.missions[self.turn] = mission_votes.count(True) >= len(mission_votes) / 2
+        self.missions[self.turn] = self.votes.count(True) >= len(self.votes) / 2
+        # if player count is 7 or more, good win if there are 2 or less false votes
+        self.missions[self.turn] = self.votes.count(False) <= (
+            self.turn == 4 and len(self.players) >= 7
+        )
         self.turn += 1
 
-    def is_vote_successful(self, votes: list[bool]) -> bool:
+    def update_after_approval_phase(self) -> bool:
         """
-        Determines if the vote is successful based on the votes received.
-        :param votes: List of boolean values indicating the votes from players
-        :return: True if the vote is successful, False otherwise
+        Updates the game state after the approval phase.
+        :return: True if the team was approved, False otherwise.
         """
 
         # if player count is 7 or more, good win if there are 2 or less false votes
-        result = votes.count(False) <= (self.turn == 4 and len(self.players) >= 7)
-        self.rejection_count += result
+        result = self.votes.count(True) >= len(self.votes) / 2
+        self.__setup_new_election(result)
 
         return result
 
-    def add_player_vote(self, player: Player, vote: bool):
+    def add_player_vote(self, vote: bool) -> bool:
         """
         Adds a player's vote to the game.
-        :param player: Player object who is voting.
         :param vote: Boolean value indicating the player's vote.
+        :return: True if the everyone has voted, False otherwise.
         """
-        self.team[player] = vote
+        # list of votes is empty at the beginning of the voting phase
+        self.votes.append(vote)
 
-        if None not in self.team.values():
-            # TODO: call phase handler to manage the next phase
-            pass
+        return len(self.votes) == len(self.team)
+
+        # if None not in self.team.values():
+        #     # TODO: call phase handler to manage the next phase
+        #     pass
 
     def lookup_player(self, id: int) -> Player | None:
         """
@@ -93,10 +99,7 @@ class Game:
         return None
 
     # helpers
-    def set_needed_team_members(self, team: list[tuple[str, bool]]):
-        pass
-
-    def change_phase(self):
+    def __change_phase(self):
         """
         Changes the phase of the game based on the current phase.
         Called at the end of each phase.
@@ -120,15 +123,17 @@ class Game:
         num_players = len(self.players)
 
         self.team_sizes = constants.playersToRules[num_players][0]
-        self.phase = PHASE.TEAM_BUILD
 
         # assign roles
-        self.set_roles()
+        self.__set_roles()
 
         random.shuffle(self.players)
         self.leader_idx = random.randrange(num_players)
 
-    def set_roles(self):
+        # finally change the phase to TEAM_BUILD
+        self.__change_phase()
+
+    def __set_roles(self):
         """
         Assigns roles to players based on the game rules.
         """
@@ -150,12 +155,14 @@ class Game:
         for k in range(num_of_minions):
             self.players[k + j + 1].role = ROLE.MOM
 
-    def voting_phase(self):
+    def __setup_new_election(self, result: bool):
         """
         Handles the voting phase of the game.
+        :param result: Boolean indicating whether the vote was successful.
         """
-        self.votes = [False] * len(self.players)
-        self.rejection_count = 0
+        # Reset the votes and rejection count for a new election
+        self.votes.clear()
+        self.rejection_count = not result
         self.leader_idx = (self.leader_idx + 1) % len(self.players)
 
     def create_team(self, team: list[Player]):
@@ -163,8 +170,7 @@ class Game:
         Creates a team for the current mission.
         :param team: List of Player objects representing the team members.
         """
-        for p in team:
-            self.team[p] = None
+        self.team = team
 
     @property
     def players(self):

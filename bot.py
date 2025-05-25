@@ -133,7 +133,8 @@ async def receive_poll_answer(
 async def receive_poll_request(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
-    await handle_build_team_request(update, context, existingGames)
+    # await handle_build_team_request(update, context, existingGames)
+    await handle_build_team_answer()
 
 
 # async def unknown_command_in_state(

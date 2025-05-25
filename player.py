@@ -1,8 +1,9 @@
 from role import Role as ROLE
 
 class Player:
-    def __init__(self, userid: int):
+    def __init__(self, userid: int, username: str):
         self.userid: int = userid
+        self.tg_name: str = username
         self.role: ROLE | None = None
         self.is_teammate: bool = False
 
