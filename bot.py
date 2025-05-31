@@ -111,7 +111,7 @@ async def button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     ):
         return
 
-    await button_vote_handler(query, game)
+    await button_vote_handler(query, context, game)
 
 
 async def receive_poll_answer(

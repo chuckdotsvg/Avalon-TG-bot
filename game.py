@@ -1,5 +1,4 @@
 import random
-import re
 import constants
 from role import Role as ROLE
 from gamephase import GamePhase as PHASE
@@ -48,20 +47,22 @@ class Game:
         # bad win if there are 3 or more rejections too
         return Counter(self.missions).most_common(1)[0][0] or self.rejection_count >= 3
 
-    def update_missions(self):
+    def update_after_mission(self) -> bool:
         """
-        Updates the missions with the results of the latest missions.
+        Updates the missions with the results of the last votes, and increments the turn.
+        :return: True if the mission was successful, False otherwise.
         """
-        self.missions[self.turn] = self.votes.count(True) >= len(self.votes) / 2
-        # if player count is 7 or more, good win if there are 2 or less false votes
-        self.missions[self.turn] = self.votes.count(False) <= (
-            self.turn == 4 and len(self.players) >= 7
-        )
+        # if player count is 7 or more, good win if there are 2 or less false votes on the 4th mission
+        result = self.votes.count(False) <= (self.turn == 4 and len(self.players) >= 7)
+
+        self.missions[self.turn] = result
         self.turn += 1
 
-    def update_after_approval_phase(self) -> bool:
+        return result
+
+    def update_after_team_decision(self) -> bool:
         """
-        Updates the game state after the approval phase.
+        Updates the game state after a team has been approved or rejected.
         :return: True if the team was approved, False otherwise.
         """
 

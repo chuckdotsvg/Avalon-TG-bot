@@ -261,7 +261,19 @@ async def _routine_pre_team_approval_phase(
         text="go to private chat to vote if the team is good or not.",
     )
 
-    # send the poll to all players
+    _send_pvt_decision_message("Do you approve the team?", game.players, context, game)
+
+
+async def _send_pvt_decision_message(
+    decision_txt: str,
+    recipients: list[Player],
+    context: ContextTypes.DEFAULT_TYPE,
+    game: Game,
+) -> None:
+    """
+    Send a private message to each player to decide if they want to approve the team.
+    """
+
     keyboard = [
         [
             InlineKeyboardButton(
@@ -273,77 +285,40 @@ async def _routine_pre_team_approval_phase(
         ]
     ]
 
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    for player in game.players:
+    for player in recipients:
         await context.bot.send_message(
             chat_id=player.userid,
-            text="Do you want to approve the team?",
-            reply_markup=reply_markup,
+            text=decision_txt,
+            reply_markup=InlineKeyboardMarkup(keyboard),
         )
 
 
-# async def handle_vote(
-#     update: Update, context: ContextTypes.DEFAULT_TYPE, existing_games: dict[int, Game]
-# ) -> None:
-#     """
-#     Handle team member decision for the mission.
-#     """
-#     if not update.message or not update.effective_user:
-#         return
-#     group_id = update.message.chat_id
-#
-#     # check if there is a game in the group
-#     if group_id in existing_games.keys():
-#         game = existing_games[group_id]
-#
-#         # check if the requesting user is a player
-#         if (player := game.lookup_player(update.effective_user.id)) is None:
-#             await update.message.reply_text(
-#                 "You are not in the game. Please join first."
-#             )
-#             return
-#
-#         # TODO: check if the game is in the voting phase
-#
-#         # check if the game is in progress
-#         # if not game.in_progress:
-#         #     await update.message.reply_text(
-#         #         "The game is not in progress. Please start the game first."
-#         #     )
-#         #     return
-#
-#         keyboard = [
-#             [
-#                 InlineKeyboardButton(
-#                     vote, callback_data=json.dumps({"vote": vote, "gid": game.id})
-#                 )
-#                 for vote in ["yes", "no"]
-#             ]
-#         ]
-#
-#         reply_markup = InlineKeyboardMarkup(keyboard)
-#
-#         for player in game.players:
-#             await context.bot.send_message(
-#                 chat_id=player.userid,
-#                 text="Do you want to make the mission successful?",
-#                 reply_markup=reply_markup,
-#             )
-#     else:
-#         await update.message.reply_text(
-#             "There is no game in this group. Please create one first."
-#         )
+async def _routine_pre_mission_phase(
+    context: ContextTypes.DEFAULT_TYPE, game: Game
+) -> None:
+    """
+    Routine to prepare the mission phase of the game.
+    """
+    # notify players in the group about the mission phase
+    await context.bot.send_message(
+        chat_id=game.id,
+        text="The team has been approved! Team, go vote for the success of the mission.",
+    )
+
+    _send_pvt_decision_message(
+        "Do you want to make the mission successful?", game.team, context, game
+    )
 
 
-async def button_vote_handler(query: CallbackQuery, game: Game) -> None:
-    if not query.data or not (voter := game.lookup_player(query.from_user.id)):
+async def button_vote_handler(
+    query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, game: Game
+) -> None:
+    if not query.data:
         return
 
     data = json.loads(query.data)
     vote = data.get("vote")
-    game.add_player_vote(
-        voter,
+    is_voting_ended = game.add_player_vote(
         # query.data is a string, so we need to convert it to a boolean
         vote == "yes",
     )
@@ -356,7 +331,11 @@ async def button_vote_handler(query: CallbackQuery, game: Game) -> None:
     )
 
     # repeat the process until the voting is succesful
-    await _routine_post_team_approval_phase(query.message.chat, game)
+    if is_voting_ended:
+        if game.phase == PHASE.TEAM_BUILD:
+            await _routine_post_team_approval_phase(context, game)
+        elif game.phase == PHASE.QUEST_PHASE:
+            await _routine_post_mission_phase(context, game)
 
 
 async def _routine_post_team_approval_phase(
@@ -366,40 +345,54 @@ async def _routine_post_team_approval_phase(
     Routine to send the correct message after the team approval phase, based on the voting results.
     """
 
-    approval_result = game.update_after_approval_phase()
+    approval_result = game.update_after_team_decision()
 
     if game.check_winner() is not None:
         # TODO: handle winner
         pass
     elif approval_result:
         # TODO: go to the mission phase
+        _routine_pre_mission_phase(context, game)
         pass
     else:
         # repeat the team building phase
         _routine_pre_team_building(context, game)
 
 
-# async def handle_build_team_request(
-#     update: Update, context: ContextTypes.DEFAULT_TYPE, existing_games: dict[int, Game]
-# ) -> None:
-#     """
-#     Handle a player building a team.
-#     """
-#     if not (group_chat := update.effective_chat) or not (
-#         game := existing_games.get(group_chat.id)
-#     ):
-#         return
-#
-#     message = await context.bot.send_poll(
-#         game.players[game.leader_idx].userid,
-#         f"Select a team of {game.team_sizes[game.turn]} players",
-#         [(await group_chat.get_member(x.userid)).user.full_name for x in game.players],
-#         is_anonymous=False,
-#         allows_multiple_answers=True,
-#     )
-#
-#     # we associate to each poll the game id that it belongs to
-#     if not (poll := message.poll):
-#         return
-#
-#     context.bot_data[poll.id] = group_chat.id
+async def _routine_post_mission_phase(
+    context: ContextTypes.DEFAULT_TYPE, game: Game
+) -> None:
+    """
+    Routine to send the correct message after the mission phase, based on the voting results.
+    """
+
+    mission_result = game.update_after_mission()
+    is_good_winner = game.check_winner()
+
+    if is_good_winner:
+        # evil have a last chance to win
+        _routine_last_chance_phase(context, game)
+    elif not is_good_winner:
+        # good lose immediately
+        await context.bot.send_message(
+            chat_id=game.id,
+            text="More than 3 mission failed! The good team loses.",
+        )
+    else:
+        # repeat the team building phase
+        _routine_pre_team_building(context, game)
+
+
+async def _routine_last_chance_phase(
+    context: ContextTypes.DEFAULT_TYPE, game: Game
+) -> None:
+    """
+    Routine to prepare the last chance phase of the game.
+    """
+    # notify players in the group about the last chance phase
+    await context.bot.send_message(
+        chat_id=game.id,
+        text="The evil team has a last chance to win the game. Assassin, choose a player to assassinate! If you choose the Merlin, you win the game.",
+    )
+
+    # TODO: send the quiz poll to the assassin
