@@ -17,6 +17,7 @@ class Game:
         self._id: int = id
         self.turn: int = 9
         self.missions: list[bool | None] = [None, None, None, None, None]
+        self.winner: bool | None = None
         self.rejection_count: int = 0
         self.votes: list[bool] = []
         self.creator: Player = creator
@@ -43,9 +44,18 @@ class Game:
         """
         self.players.remove(player)
 
-    def check_winner(self) -> bool | None:
+    def update_winner(self):
         # bad win if there are 3 or more rejections too
-        return Counter(self.missions).most_common(1)[0][0] or self.rejection_count >= 3
+        self.winner = self.rejection_count >= 3 or Counter(self.missions).most_common(1)[0][0] or None
+
+    def update_winner_after_assassination(self, choice: Player):
+        """
+        Handles the assassin's choice at the end of the game.
+        :param choice: Player object representing the chosen player.
+        :return: True if the assassin guessed correctly, False otherwise.
+        """
+        self.winner = choice.role == ROLE.MERLIN
+
 
     def update_after_mission(self) -> bool:
         """
@@ -58,6 +68,9 @@ class Game:
         self.missions[self.turn] = result
         self.turn += 1
 
+        # TODO: check if the game is over
+        # self.winner = Counter(self.missions).most_common(1)[0][0] or None
+
         return result
 
     def update_after_team_decision(self) -> bool:
@@ -69,6 +82,9 @@ class Game:
         # if player count is 7 or more, good win if there are 2 or less false votes
         result = self.votes.count(True) >= len(self.votes) / 2
         self.__setup_new_election(result)
+
+        # TODO: check if the game is over
+        # self.winner = self.rejection_count >= 3 or None
 
         return result
 
@@ -109,8 +125,8 @@ class Game:
             self.phase = PHASE.QUEST_PHASE
             # fai cose
         elif self.phase == PHASE.QUEST_PHASE:
-            if self.check_winner() is not None:
-                if not self.check_winner():
+            if self.winner is not None:
+                if not self.winner:
                     self.phase = PHASE.GAME_OVER
                 else:
                     self.phase = PHASE.LAST_CHANCE

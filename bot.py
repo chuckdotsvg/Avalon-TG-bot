@@ -18,7 +18,6 @@ from telegram.ext import (
 
 import controller
 from controller import (
-    _handle_assassin_choice,
     button_vote_handler,
     handle_build_team_answer,
     handle_build_team_request,
@@ -42,6 +41,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
+existingGames = controller.existingGames
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
@@ -129,10 +129,8 @@ async def receive_poll_answer(
     ):
         return
 
-    game_id = int(context.bot_data.get(answer.poll_id) or 0)
-
     if game.phase == PHASE.BUILD_TEAM:
-        await handle_build_team_answer(answer, msg.id, context, game.id)
+        await handle_build_team_answer(answer, msg.id, context, game)
     elif game.phase == PHASE.LAST_CHANCE:
         await handle_assassin_choice(msg.id, context, game.id)
 
@@ -149,9 +147,6 @@ async def receive_poll_answer(
 #
 #     await message.reply_text("You can't use this command now!")
 #     return game.phase
-
-
-
 
 def main() -> None:
     application = ApplicationBuilder().token(telegram_token).build()

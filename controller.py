@@ -247,13 +247,11 @@ async def handle_build_team_answer(
     answer_team: PollAnswer,
     message_id: int,
     context: ContextTypes.DEFAULT_TYPE,
+    game: Game,
 ) -> None:
     """
     Handle the answer to the team building poll.
     """
-    if not (game := existingGames.get(data.get("gid"))):
-        return
-
     leader_userid = game.players[game.leader_idx].userid
 
     # TODO: replace message with warning
@@ -391,7 +389,7 @@ async def _routine_post_team_approval_phase(
 
     approval_result = game.update_after_team_decision()
 
-    if game.check_winner() is not None:
+    if game.winner is not None:
         await _routine_end_game(context, game.id)
     elif approval_result:
         # go to the mission phase
@@ -410,12 +408,11 @@ async def _routine_post_mission_phase(
     """
 
     game.update_after_mission()
-    is_good_winner = game.check_winner()
 
-    if is_good_winner:
+    if game.winner:
         # evil have a last chance to win
         _routine_last_chance_phase(context, game)
-    elif not is_good_winner:
+    elif not game.winner:
         # good lose immediately
         await context.bot.send_message(
             chat_id=game.id,
@@ -455,8 +452,7 @@ async def handle_assassin_choice(
     msg_id: int, update: Update, context: ContextTypes.DEFAULT_TYPE, game_id: int
 ):
     if (
-        not (poll := update.poll)
-        or not (assassin := update.effective_user)
+        not (assassin := update.effective_user)
         or not (answer := update.poll_answer)
     ):
         return
@@ -472,11 +468,10 @@ async def handle_assassin_choice(
     await _routine_end_game(context, game_id)
 
 async def _routine_end_game(context: ContextTypes.DEFAULT_TYPE, game_id: int) -> None:
-    is_good_winner = existingGames[game_id].check_winner()
 
     await context.bot.send_message(
         chat_id=game_id,
-        text=f"{is_good_winner and 'Good' or 'Evil'} team wins the game!",
+        text=f"{existingGames[game_id].winner and 'Good' or 'Evil'} team wins the game!",
     )
 
     # cleanup the game
