@@ -105,7 +105,7 @@ class Game:
         Changes the phase of the game based on the current phase.
         Called at the end of each phase.
         """
-        if self.phase == PHASE.TEAM_BUILD:
+        if self.phase == PHASE.BUILD_TEAM:
             self.phase = PHASE.QUEST_PHASE
             # fai cose
         elif self.phase == PHASE.QUEST_PHASE:
@@ -115,7 +115,7 @@ class Game:
                 else:
                     self.phase = PHASE.LAST_CHANCE
             else:
-                self.phase = PHASE.TEAM_BUILD
+                self.phase = PHASE.BUILD_TEAM
 
     def start_game(self):
         """

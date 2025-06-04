@@ -6,7 +6,7 @@ class GamePhase(Enum):
     Enum representing the different phases of a game.
     """
     LOBBY = 0
-    TEAM_BUILD = 1
+    BUILD_TEAM = 1
     QUEST_PHASE = 2
     TEAM_VERDICT = 3
     LAST_CHANCE = 4
