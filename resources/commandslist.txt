@@ -1,7 +1,0 @@
-create - create a new lobby
-join - join a lobby
-leave - leave the lobby or game
-start - start the game (at least 5 players)
-pvtbroadcast - private broadcast
-testvote - yeah
-buildteam - build a team

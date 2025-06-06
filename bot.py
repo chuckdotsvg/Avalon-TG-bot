@@ -1,33 +1,25 @@
 import logging
 import os
-import json
 
-import telegram
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import BotCommand, Update
 from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
-    ConversationHandler,
-    MessageHandler,
     PollAnswerHandler,
-    filters,
 )
 
 import controller
 from controller import (
     button_vote_handler,
     handle_build_team_answer,
-    handle_build_team_request,
     handle_create_game,
     handle_join_game,
     handle_leave_game,
     handle_start_game,
-    handle_vote,
 )
-from game import Game
 from gamephase import GamePhase as PHASE
 
 _ = load_dotenv()
@@ -44,21 +36,25 @@ logger = logging.getLogger(__name__)
 existingGames = controller.existingGames
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
     message = update.effective_message
 
-    if message is None or user is None:
-        return
+    text = "Hi, I'm your bot for playing The Resistance!\n"
+    text += "Add me to a group chat to play with friends!\n"
+    text += "Use /help to see the available commands."
 
-    await message.reply_markdown_v2(
-        rf"Hi {user.mention_markdown_v2()}\!",
-    )
+    await message.reply_text(text) if message else None
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
 
-    await update.message.reply_text("Help!") if update.message else None
+    text = "In order to use this bot, add it to a group chat and use the commands below.\n"
+    text += "Here are the available commands:\n"
+
+    for c, _ in COMMANDS:
+        text += f"/{c.command} - {c.description}\n"
+
+    await update.message.reply_text(text) if update.message else None
 
 
 async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -87,7 +83,6 @@ async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
 #             text="This is a test message to all players in the game.",
 #         )
 
-
 async def build_team(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await handle_build_team_request(update, context)
 
@@ -103,10 +98,7 @@ async def button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     await query.answer()
 
-    if (
-        not query.message
-        or not query.message.chat
-    ):
+    if not query.message or not query.message.chat:
         return
 
     await button_vote_handler(query, context)
@@ -124,15 +116,14 @@ async def receive_poll_answer(
         return
 
     # check if the poll is in the bot data
-    if not (
-        game := existingGames.get(int(context.bot_data.get(answer.poll_id) or 0))
-    ):
+    if not (game := existingGames.get(int(context.bot_data.get(answer.poll_id) or 0))):
         return
 
     if game.phase == PHASE.BUILD_TEAM:
         await handle_build_team_answer(answer, msg.id, context, game)
     elif game.phase == PHASE.LAST_CHANCE:
         await handle_assassin_choice(msg.id, context, game.id)
+
 
 # async def unknown_command_in_state(
 #     update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -148,6 +139,16 @@ async def receive_poll_answer(
 #     await message.reply_text("You can't use this command now!")
 #     return game.phase
 
+
+COMMANDS = [
+    (BotCommand("start", "Start the bot"), start),
+    (BotCommand("help", "Show help message"), help_command),
+    (BotCommand("create", "Create a new game"), create_game),
+    (BotCommand("join", "Join an existing game"), join_game),
+    (BotCommand("leave", "Leave the current game"), leave_game),
+    (BotCommand("startgame", "Start the current game"), start_game),
+]
+
 def main() -> None:
     application = ApplicationBuilder().token(telegram_token).build()
 
@@ -155,12 +156,13 @@ def main() -> None:
     # application.add_handler(CommandHandler("testvote", test_vote))
     # application.add_handler(CommandHandler("buildteam", receive_poll_request))
 
+    bot = application.bot
+    _ = bot.set_my_commands([x[0] for x in COMMANDS])
+
+    for c, handler in COMMANDS:
+        application.add_handler(CommandHandler(c.command, handler))
+
     application.add_handler(CallbackQueryHandler(button_vote))
-    application.add_handler(CommandHandler("create", create_game))
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("join", join_game))
-    application.add_handler(CommandHandler("leave", leave_game))
     application.add_handler(PollAnswerHandler(receive_poll_answer))
 
     application.run_polling(allowed_updates=Update.ALL_TYPES)
