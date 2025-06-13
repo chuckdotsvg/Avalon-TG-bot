@@ -21,7 +21,7 @@ class Game:
         self.rejection_count: int = 0
         self.votes: list[bool] = []
         self.creator: Player = creator
-        self._players: list[Player] = [creator]
+        self._players: list[Player] = [ creator ]
         # self.team: dict[Player, bool | None] = {}
         self.team: list[Player] = []
         self.leader_idx: int = -1
@@ -29,24 +29,46 @@ class Game:
         self.special_roles: list[ROLE] = [ROLE.MERLIN, ROLE.ASSASSIN]
         self.team_sizes: list[int]
 
-    def add_player(self, player: Player):
+    def player_join(self, player: Player):
         """
         Adds a player to the game.
         :param player: Player object to be added.
-        :return: True if the player was added successfully, False otherwise.
+        :return: True if the game is ongoing after addition, False otherwise.
         """
-        self.players.append(player)
 
-    def remove_player(self, player: Player):
+        if player in self.players:
+            index = self.players.index(player)
+            if not self.players[index].is_online:
+                # player is already in the game, but offline, so set online status to True
+                self.players[index].is_online = True
+        else:
+            # player is not in the game, so add them
+            self.players.append(player)
+
+    def player_leave(self, player: Player) -> bool:
         """
-        Removes a player from the game.
+        When game is ongoing, "stops" the game, otherwise removes the player from the lobby.
         :param player: Player object to be removed.
+        :return: True there is at least one player left/online in the game, False otherwise.
         """
-        self.players.remove(player)
+        if player in self.players:
+            index = self.players.index(player)
+            if self.is_ongoing():
+                # if the game is ongoing, set the player as offline
+                self.players[index].is_online = False
+            else:
+                # if the game is in lobby, remove the player from the game
+                del self.players[index]
+
+        return len(self.players) > 0 and any(p.is_online for p in self.players)
 
     def update_winner(self):
         # bad win if there are 3 or more rejections too
-        self.winner = self.rejection_count >= 3 or Counter(self.missions).most_common(1)[0][0] or None
+        self.winner = (
+            self.rejection_count >= 3
+            or Counter(self.missions).most_common(1)[0][0]
+            or None
+        )
 
     def update_winner_after_assassination(self, choice: Player):
         """
@@ -55,7 +77,6 @@ class Game:
         :return: True if the assassin guessed correctly, False otherwise.
         """
         self.winner = choice.role == ROLE.MERLIN
-
 
     def update_after_mission(self) -> bool:
         """
@@ -98,10 +119,6 @@ class Game:
         self.votes.append(vote)
 
         return len(self.votes) == len(self.team)
-
-        # if None not in self.team.values():
-        #     # TODO: call phase handler to manage the next phase
-        #     pass
 
     def lookup_player(self, id: int) -> Player | None:
         """
@@ -188,6 +205,13 @@ class Game:
         :param team: List of Player objects representing the team members.
         """
         self.team = team
+
+    def is_ongoing(self) -> bool:
+        """
+        Checks if the game is currently ongoing.
+        :return: True if the game is ongoing, False otherwise.
+        """
+        return self.phase != PHASE.LOBBY and False not in [p.is_online for p in self.players]
 
     @property
     def players(self):

@@ -67,18 +67,21 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # TODO: handle telegram errors
         return
 
-    # this can't be None
-    if (game := existingGames[group_id]).lookup_player(user.id) is None:
-        new_player = Player(user.id, user.full_name)
-        game.add_player(new_player)
-        await update.message.reply_html(f"{new_player.tg_name} has joined the game!")
+    game = existingGames[group_id]
 
-    if len(game.players) == 10:
-        # the game is full, start it automatically
-        await _routine_start_game(context, game)
-    else:
+    p = game.lookup_player(user.id) or Player(user.id, user.full_name)
+
+    if not game.is_ongoing():  # player is already in the game and is online
+        game.player_join(p)
+    else:  # player left while the game was ongoing
         await update.message.reply_text("You are already in the game!")
-        return
+
+    if game.is_ongoing():
+        # todo: communicate the restore of game state
+        pass
+    elif game.phase == PHASE.LOBBY:
+        # the lobby is full, start the game automatically
+        await _routine_start_game(context, game)
 
     return
 
@@ -104,11 +107,10 @@ async def handle_leave_game(update: Update):
                 "You are not in the game. Please join first."
             )
         else:
-            game.remove_player(player)
             await update.message.reply_html(f"{user.mention_html()} has left the game!")
 
             # if there are no players left, remove the Game
-            if len(game.players) == 0:
+            if not game.player_leave(player):
                 # remove the game from the existing games
                 del existingGames[group_id]
 
@@ -331,9 +333,7 @@ async def _send_pvt_decision_message(
         )
 
 
-async def _routine_pre_mission_phase(
-    context: ContextTypes.DEFAULT_TYPE, game: Game
-):
+async def _routine_pre_mission_phase(context: ContextTypes.DEFAULT_TYPE, game: Game):
     """
     Routine to prepare the mission phase of the game.
     """
@@ -451,10 +451,7 @@ async def _routine_last_chance_phase(
 async def handle_assassin_choice(
     msg_id: int, update: Update, context: ContextTypes.DEFAULT_TYPE, game_id: int
 ):
-    if (
-        not (assassin := update.effective_user)
-        or not (answer := update.poll_answer)
-    ):
+    if not (assassin := update.effective_user) or not (answer := update.poll_answer):
         return
 
     assassin_id = assassin.id
@@ -467,8 +464,8 @@ async def handle_assassin_choice(
 
     await _routine_end_game(context, game_id)
 
-async def _routine_end_game(context: ContextTypes.DEFAULT_TYPE, game_id: int) -> None:
 
+async def _routine_end_game(context: ContextTypes.DEFAULT_TYPE, game_id: int) -> None:
     await context.bot.send_message(
         chat_id=game_id,
         text=f"{existingGames[game_id].winner and 'Good' or 'Evil'} team wins the game!",

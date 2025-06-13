@@ -6,6 +6,7 @@ class Player:
         self.tg_name: str = username
         self.role: ROLE | None = None
         self.is_teammate: bool = False
+        self.is_online: bool = True
 
     def __str__(self):
         return f"Player(role={self.role})"
