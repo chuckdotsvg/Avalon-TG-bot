@@ -7,7 +7,7 @@ class GamePhase(Enum):
     """
     LOBBY = 0
     BUILD_TEAM = 1
-    QUEST_PHASE = 2
+    QUEST = 2
     TEAM_VERDICT = 3
     LAST_CHANCE = 4
     GAME_OVER = 5

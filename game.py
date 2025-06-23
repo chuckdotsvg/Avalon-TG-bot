@@ -138,9 +138,9 @@ class Game:
         Called at the end of each phase.
         """
         if self.phase == PHASE.BUILD_TEAM:
-            self.phase = PHASE.QUEST_PHASE
+            self.phase = PHASE.QUEST
             # fai cose
-        elif self.phase == PHASE.QUEST_PHASE:
+        elif self.phase == PHASE.QUEST:
             if self.winner is not None:
                 if not self.winner:
                     self.phase = PHASE.GAME_OVER

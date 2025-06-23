@@ -177,7 +177,7 @@ def main() -> None:
 
     # _ = application.bot.delete_webhook(drop_pending_updates=True)
 
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
 
 if __name__ == "__main__":

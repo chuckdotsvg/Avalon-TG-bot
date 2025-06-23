@@ -397,7 +397,7 @@ async def button_vote_handler(
     if is_voting_ended:
         if game.phase == PHASE.BUILD_TEAM:
             await _routine_post_team_approval_phase(context, game)
-        elif game.phase == PHASE.QUEST_PHASE:
+        elif game.phase == PHASE.QUEST:
             await _routine_post_mission_phase(context, game)
 
 
