@@ -33,7 +33,6 @@ class Game:
         """
         Adds a player to the game.
         :param player: Player object to be added.
-        :return: True if the game is ongoing after addition, False otherwise.
         """
 
         if player in self.players:

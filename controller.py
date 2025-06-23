@@ -69,18 +69,34 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     game = existingGames[group_id]
 
-    p = game.lookup_player(user.id) or Player(user.id, user.full_name)
+    # p = game.lookup_player(user.id) or Player(user.id, user.full_name)
+    p = game.lookup_player(user.id)
 
-    if not game.is_ongoing():  # player is already in the game and is online
-        game.player_join(p)
-    else:  # player left while the game was ongoing
-        await update.message.reply_text("You are already in the game!")
+    if p is not None:
+        if p.is_online:  # player is already in the game
+            await update.message.reply_text("You are already in the game")
+        elif not game.is_ongoing():  # player is in the game, but not online
+            game.player_join(p)
+    else:
+        # player is not in the game, so we create a new Player
+        p = Player(user.id, user.full_name)
+        if game.is_ongoing() or game.phase != PHASE.LOBBY:
+            # game already started, cannot join
+            await update.message.reply_text(
+                "The game has already started. You cannot join now."
+            )
+        elif game.phase == PHASE.LOBBY:
+            game.player_join(p)
+            await update.message.reply_html(
+                f"{user.mention_html()} has joined the game!",
+            )
 
+    # notify the group if everyone is online
     if game.is_ongoing():
-        # todo: communicate the restore of game state
-        pass
-    elif game.phase == PHASE.LOBBY:
-        # the lobby is full, start the game automatically
+        await update.message.reply_text(
+            "Everyone is online again, the game can continue!"
+        )
+    elif len(game.players) == 10:
         await _routine_start_game(context, game)
 
     return
@@ -199,7 +215,7 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
     #     allows_multiple_answers=True,
     # )
 
-    await _send_people_vote_poll(
+    message = await _send_people_vote_poll(
         context,
         game,
         [x.tg_name for x in game.players],
@@ -207,6 +223,11 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
         POLLTYPE.REGULAR,
         None,
     )
+
+    payload = {
+        message.poll.id: message.message_id,
+    }
+    context.bot_data.update(payload)
 
 
 async def _send_people_vote_poll(
@@ -438,7 +459,7 @@ async def _routine_last_chance_phase(
     goods = [x for x in game.players if x.role[1]]
     merlin_idx = [x.role for x in goods].index(ROLE.MERLIN)
 
-    await _send_people_vote_poll(
+    message = await _send_people_vote_poll(
         context,
         game,
         [x.tg_name for x in goods],
@@ -446,6 +467,11 @@ async def _routine_last_chance_phase(
         POLLTYPE.QUIZ,
         merlin_idx,
     )
+
+    payload = {
+        message.poll.id: message.message_id,
+    }
+    context.bot_data.update(payload)
 
 
 async def handle_assassin_choice(

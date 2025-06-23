@@ -1,0 +1,7 @@
+start - Start the bot
+help - Show help message
+create - Create a new game
+join - Join an existing game
+leave - Leave the current game
+startgame - Start the current game
+privatepoll - test

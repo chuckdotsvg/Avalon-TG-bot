@@ -54,8 +54,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     text += "Here are the available commands:\n"
 
-    for c, _ in COMMANDS:
-        text += f"/{c.command} - {c.description}\n"
+    text += "suca"
 
     await update.message.reply_text(text) if update.message else None
 
@@ -74,17 +73,6 @@ async def leave_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await handle_start_game(update, context)
-
-
-# async def test_private_msg_broadcast(
-#     update: Update, context: ContextTypes.DEFAULT_TYPE
-# ) -> None:
-#     """Send a message when the command /test is issued."""
-#     for user in existingGames[update.effective_chat.id].players:
-#         await context.bot.send_message(
-#             chat_id=user.userid,
-#             text="This is a test message to all players in the game.",
-#         )
 
 
 async def button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -120,38 +108,35 @@ async def receive_poll_answer(
     elif game.phase == PHASE.LAST_CHANCE:
         await handle_assassin_choice(msg.id, context, game.id)
 
+
 async def receive_poll_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle poll answers for testing purposes."""
-    if not (answer := update.poll_answer) or not (msg := update.message):
-        print("No poll answer or message found.")
+    if not (answer := update.poll_answer):
         return
 
-    # if len(answer.option_ids) == 0:
-    #     # no options selected => vote retracted => no action
-    #     return
-    # elif len(answer.option_ids) == 2:
-    #     # For testing, stop the poll if two options are selected
-    #     await msg.stop_poll()
-    #     # send message informing what options were selected
-    #     await msg.reply_text(
-    #         f"You selected options: {', '.join(map(str, answer.option_ids))}. The poll has been stopped."
-    #     )
-    # else:
-    #     # warning message
-    #     await msg.reply_text(
-    #         "You can only select two options for this test poll. Please try again."
-            # )
-    await msg.stop_poll()  # Stop the poll for testing purposes
-    await context.bot.send_message(chat_id=msg.chat_id, text="Poll stopped for testing purposes.")
-    await msg.reply_text(
-        f"You selected options: {', '.join(map(str, answer.option_ids))}. The poll has been stopped."
-    )
+    msg_id = context.bot_data.get(answer.poll_id)
 
+    if len(answer.option_ids) == 0:
+        # no options selected => vote retracted => no action
+        return
+    elif len(answer.option_ids) == 2:
+        # For testing, stop the poll if two options are selected
+        await context.bot.stop_poll(chat_id=update.effective_user.id, message_id=msg_id)
 
+        # await msg.stop_poll()
+        # send message informing what options were selected
+        msg = await context.bot.send_message(
+            chat_id=update.effective_user.id,
+            text=f"You selected options: {', '.join(map(str, answer.option_ids))}. The poll has been stopped.",
+        )
 
-    # For testing, just log the answer
-    logger.info(f"Received poll answer: {answer.option_ids} for poll {answer.poll_id}")
-    await msg.reply_text(f"You voted for options: {answer.option_ids}")
+    else:
+        # warning message
+        await context.bot.send_message(
+            chat_id=update.effective_user.id,
+            text="You can only select two options for this test poll. Please try again.",
+        )
+
 
 async def private_poll_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Test command for private polls."""
@@ -163,7 +148,7 @@ async def private_poll_test(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     options = ["Option 1", "Option 2", "Option 3"]
 
     # Send the poll to the user
-    await context.bot.send_poll(
+    message = await context.bot.send_poll(
         chat_id=update.effective_user.id,  # Send to the user privately
         question=question,
         options=options,
@@ -171,29 +156,24 @@ async def private_poll_test(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         allows_multiple_answers=True,  # Set to True if you want multiple answers
     )
 
-
-COMMANDS = [
-    (BotCommand("start", "Start the bot"), start),
-    (BotCommand("help", "Show help message"), private_poll_test),
-    (BotCommand("create", "Create a new game"), create_game),
-    (BotCommand("join", "Join an existing game"), join_game),
-    (BotCommand("leave", "Leave the current game"), leave_game),
-    (BotCommand("startgame", "Start the current game"), start_game),
-    (BotCommand("privatepoll", "test"), private_poll_test),
-]
+    payload = {
+        message.poll.id: message.message_id,
+    }
+    context.bot_data.update(payload)
 
 
 def main() -> None:
     application = ApplicationBuilder().token(telegram_token).build()
 
-    bot = application.bot
-    _ = bot.set_my_commands([x[0] for x in COMMANDS])
-
-    for c, handler in COMMANDS:
-        application.add_handler(CommandHandler(c.command, handler))
-
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("create", create_game))
+    application.add_handler(CommandHandler("join", join_game))
+    application.add_handler(CommandHandler("leave", leave_game))
+    application.add_handler(CommandHandler("startgame", start_game))
+    application.add_handler(CommandHandler("privatepoll", private_poll_test))
     application.add_handler(CallbackQueryHandler(button_vote))
-    application.add_handler(PollAnswerHandler(receive_poll_test))
+    application.add_handler(PollAnswerHandler(receive_poll_answer))
 
     # _ = application.bot.delete_webhook(drop_pending_updates=True)
 
