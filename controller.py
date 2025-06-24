@@ -87,7 +87,8 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             game.player_join(p)
             await update.message.reply_html(
-                f"{user.mention_html()} has joined the game!",
+                f"{user.mention_html()} has joined the game!\nRemember to start this bot in private chat",
+
             )
 
     if game.is_ongoing():
