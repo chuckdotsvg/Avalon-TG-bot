@@ -69,7 +69,6 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     game = existingGames[group_id]
 
-    # p = game.lookup_player(user.id) or Player(user.id, user.full_name)
     p = game.lookup_player(user.id)
 
     if p is not None:
@@ -80,23 +79,23 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         # player is not in the game, so we create a new Player
         p = Player(user.id, user.full_name)
-        if game.is_ongoing() or game.phase != PHASE.LOBBY:
+        if game.phase != PHASE.LOBBY:
             # game already started, cannot join
             await update.message.reply_text(
                 "The game has already started. You cannot join now."
             )
-        elif game.phase == PHASE.LOBBY:
+        else:
             game.player_join(p)
             await update.message.reply_html(
                 f"{user.mention_html()} has joined the game!",
             )
 
-    # notify the group if everyone is online
     if game.is_ongoing():
+    # notify the group if everyone is online
         await update.message.reply_text(
             "Everyone is online again, the game can continue!"
         )
-    elif len(game.players) == 10:
+    elif PHASE.LOBBY and len(game.players) == 10:
         await _routine_start_game(context, game)
 
     return
@@ -189,50 +188,36 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
             text=f"Your role is: {player.role.name}.\n",  # now role can't be None
         )
 
-    # go and do the voting phase stuff
-    await context.bot.send_message(
-        chat_id=game.id,
-        text="The game has started! You can now start building the team.",
-    )
-
 
 async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: Game):
     """
     Routine to prepare the voting phase of the game (i.e. sending the poll to the team leader).
     """
     # notify players in the group about the voting phase
+    text = f"The game has started! {game.players[game.leader_idx].tg_name} is the team leader for this round.\n"
+    text += "He will decide the current team, wait for his decision"
+
     await context.bot.send_message(
         chat_id=game.id,
-        text="The voting phase has started! wait for the team leader to build a team.",
+        text=text,
     )
 
-    # send the poll to the team leader
-    # await context.bot.send_poll(
-    #     game.players[game.leader_idx].userid,
-    #     f"Select a team of {game.team_sizes[game.turn]} players",
-    #     [x.tg_name for x in game.players],
-    #     is_anonymous=False,
-    #     allows_multiple_answers=True,
-    # )
-
-    message = await _send_people_vote_poll(
+    await _send_people_vote_poll(
         context,
-        game,
+        game.id,
+        game.players[game.leader_idx].userid,
         [x.tg_name for x in game.players],
-        f"Select a team of {game.team_sizes[game.turn]} players",
+        f"Leader, select a team of {game.team_sizes[game.turn]} players",
         POLLTYPE.REGULAR,
         None,
     )
 
-    payload = {
-        message.poll.id: message.message_id,
-    }
-    context.bot_data.update(payload)
 
 
 async def _send_people_vote_poll(
     context: ContextTypes.DEFAULT_TYPE,
-    game: Game,
+    game_id: int,
+    recipient: int,
     people_name: list[str],
     poll_msg: str,
     poll_type: POLLTYPE,
@@ -240,6 +225,13 @@ async def _send_people_vote_poll(
 ) -> Message:
     """
     Send a poll to the group chat to vote for the team leader.
+    :param context: the context of the bot
+    :param game: the game object
+    :param recipient: the recipient of the poll (the team leader)
+    :param people_name: the names of the players to be included in the poll
+    :param poll_msg: the message to be sent with the poll
+    :param poll_type: the type of the poll (regular or quiz)
+    :param correct_opt_id: the index of the correct option (if any, for quiz polls)
     """
 
     args: list[Any] = []
@@ -248,26 +240,23 @@ async def _send_people_vote_poll(
         args.append(correct_opt_id)
 
     msg = await context.bot.send_poll(
-        game.players[game.leader_idx].userid,
-        poll_msg,
-        people_name,
+        chat_id = recipient,
+        question = poll_msg,
+        options = people_name,
         is_anonymous=False,
         allows_multiple_answers=poll_type == POLLTYPE.REGULAR,
         *args,
     )
 
-    # we associate to each poll the game id that it belongs to
-    if not (poll := msg.poll):
-        # TODO: handle telegram errors
-        return
-
-    context.bot_data[poll.id] = game.id
+    payload = {
+        msg.poll.id: (msg.message_id, game_id),
+    }
+    context.bot_data.update(payload)
 
     return msg
 
-
 async def handle_build_team_answer(
-    answer_team: PollAnswer,
+    answer_team: tuple[int, ...],
     message_id: int,
     context: ContextTypes.DEFAULT_TYPE,
     game: Game,
@@ -278,7 +267,7 @@ async def handle_build_team_answer(
     leader_userid = game.players[game.leader_idx].userid
 
     # TODO: replace message with warning
-    if (voted_team_size := len(answer_team.option_ids)) != game.team_sizes[game.turn]:
+    if (voted_team_size := len(answer_team)) != game.team_sizes[game.turn]:
         await context.bot.send_message(
             chat_id=leader_userid,
             text=f"You have selected {voted_team_size} players, but you need to select {game.team_sizes[game.turn]} players.",
@@ -292,7 +281,7 @@ async def handle_build_team_answer(
         )
 
         # player order in poll has the same order as in game.players, so indexing is safe
-        game.create_team([game.players[i] for i in answer_team.option_ids])
+        game.create_team([game.players[i] for i in answer_team])
 
         # close poll and update game state
         await context.bot.send_message(
@@ -458,20 +447,17 @@ async def _routine_last_chance_phase(
 
     goods = [x for x in game.players if x.role[1]]
     merlin_idx = [x.role for x in goods].index(ROLE.MERLIN)
+    assassin_tg_id = game.players[[x.role for x in game.players].index(ROLE.MERLIN)].userid
 
-    message = await _send_people_vote_poll(
+    await _send_people_vote_poll(
         context,
-        game,
+        game.id,
+        assassin_tg_id,
         [x.tg_name for x in goods],
         "Assassin, try to kill Merlin... who you want to kill?",
         POLLTYPE.QUIZ,
         merlin_idx,
     )
-
-    payload = {
-        message.poll.id: message.message_id,
-    }
-    context.bot_data.update(payload)
 
 
 async def handle_assassin_choice(

@@ -161,6 +161,7 @@ class Game:
         self.__set_roles()
 
         random.shuffle(self.players)
+
         self.leader_idx = random.randrange(num_players)
 
         # finally change the phase to TEAM_BUILD
@@ -171,22 +172,21 @@ class Game:
         Assigns roles to players based on the game rules.
         """
         num_players = len(self.players)
+        num_special = len(self.special_roles)
         num_of_servants = constants.playersToRules[num_players][1] - [
             x[1] for x in self.special_roles
         ].count(True)
-        num_of_minions = num_players - num_of_servants - len(self.special_roles)
+        num_of_minions = num_players - num_of_servants - num_special
 
-        i = 0
-        j = 0
-
-        for i in range(len(self.special_roles)):
+        i = j = k = 0
+        for i in range(num_special):
             self.players[i].role = self.special_roles[i]
 
         for j in range(num_of_servants):
             self.players[j + i + 1].role = ROLE.LSOA
 
         for k in range(num_of_minions):
-            self.players[k + j + 1].role = ROLE.MOM
+            self.players[k + j + i + 1].role = ROLE.MOM
 
     def __setup_new_election(self, result: bool):
         """
@@ -208,7 +208,7 @@ class Game:
     def is_ongoing(self) -> bool:
         """
         Checks if the game is currently ongoing.
-        :return: True if the game is ongoing, False otherwise.
+        :return: True if not in lobby and everyone is online, False otherwise.
         """
         return self.phase != PHASE.LOBBY and False not in [p.is_online for p in self.players]
 

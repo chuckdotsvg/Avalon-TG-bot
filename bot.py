@@ -19,6 +19,7 @@ from controller import (
     handle_join_game,
     handle_leave_game,
     handle_start_game,
+    handle_assassin_choice,
 )
 from gamephase import GamePhase as PHASE
 
@@ -92,21 +93,23 @@ async def receive_poll_answer(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """Handle poll answers."""
-    if not (answer := update.poll_answer) or not (msg := update.message):
+    if not (answer := update.poll_answer):
         return
 
     if len(answer.option_ids) == 0:
         # no options selected => vote retracted => no action
         return
 
+    poll_msg_id, game_id = context.bot_data[answer.poll_id]
+
     # check if the poll is in the bot data
-    if not (game := existingGames.get(int(context.bot_data.get(answer.poll_id) or 0))):
+    if not (game := existingGames.get(game_id)):
         return
 
     if game.phase == PHASE.BUILD_TEAM:
-        await handle_build_team_answer(answer, msg.id, context, game)
+        await handle_build_team_answer(answer.option_ids, poll_msg_id, context, game)
     elif game.phase == PHASE.LAST_CHANCE:
-        await handle_assassin_choice(msg.id, context, game.id)
+        await handle_assassin_choice(poll_msg_id, update, context, game.id)
 
 
 async def receive_poll_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -171,7 +174,7 @@ def main() -> None:
     application.add_handler(CommandHandler("join", join_game))
     application.add_handler(CommandHandler("leave", leave_game))
     application.add_handler(CommandHandler("startgame", start_game))
-    application.add_handler(CommandHandler("privatepoll", private_poll_test))
+    # application.add_handler(CommandHandler("privatepoll", private_poll_test))
     application.add_handler(CallbackQueryHandler(button_vote))
     application.add_handler(PollAnswerHandler(receive_poll_answer))
 
