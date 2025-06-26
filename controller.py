@@ -351,7 +351,7 @@ async def _routine_pre_team_approval_phase(
         text="go to private chat to vote if the team is good or not.",
     )
 
-    _send_pvt_decision_message("Do you approve the team?", game.players, context, game)
+    await _send_pvt_decision_message("Do you approve the team?", game.players, context, game)
 
 
 async def _send_pvt_decision_message(
