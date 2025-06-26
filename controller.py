@@ -171,8 +171,11 @@ async def handle_start_game(
         )
         return
 
-    # this effectively starts the game
-    await _routine_start_game(context, game)
+    if game.is_ongoing():
+        await update.message.reply_text("The game is already ongoing.")
+    else:
+        # this effectively starts the game
+        await _routine_start_game(context, game)
 
 async def handle_delete_game(update: Update):
     """
@@ -261,19 +264,29 @@ async def _send_people_vote_poll(
     :param correct_opt_id: the index of the correct option (if any, for quiz polls)
     """
 
-    args: list[Any] = []
-    args.append(poll_type)
-    if correct_opt_id:
-        args.append(correct_opt_id)
+    poll_kwargs = {
+            "chat_id": recipient,
+            "question": poll_msg,
+            "options": people_name,
+            "is_anonymous": False,
+            "type": poll_type,
+            "allows_multiple_answers": True,
+        }
 
-    msg = await context.bot.send_poll(
-        chat_id = recipient,
-        question = poll_msg,
-        options = people_name,
-        is_anonymous=False,
-        allows_multiple_answers=poll_type == POLLTYPE.REGULAR,
-        *args,
-    )
+    if poll_type == "quiz" and correct_opt_id is not None:
+        poll_kwargs["correct_option_id"] = correct_opt_id
+
+    msg = await context.bot.send_poll(**poll_kwargs)
+
+        # msg = await context.bot.send_poll(
+        #     chat_id = recipient,
+        #     question = poll_msg,
+        #     options = people_name,
+        #     is_anonymous=False,
+        #     type = poll_type,
+        #     allows_multiple_answers=True,
+        #     correct_option_id=correct_opt_id,
+        # )
 
     payload = {
         msg.poll.id: (msg.message_id, game_id),
