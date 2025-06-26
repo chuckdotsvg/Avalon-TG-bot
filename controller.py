@@ -76,6 +76,12 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("You are already in the game")
         elif not game.is_ongoing():  # player is in the game, but not online
             game.player_join(p)
+
+            if game.is_ongoing():
+                # notify the group if everyone is online
+                await update.message.reply_text(
+                    "Everyone is online again, the game can continue!"
+                )
     else:
         # player is not in the game, so we create a new Player
         p = Player(user.id, user.full_name)
@@ -90,13 +96,9 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"{user.mention_html()} has joined the game!\nRemember to start this bot in private chat",
             )
 
-    if game.is_ongoing():
-        # notify the group if everyone is online
-        await update.message.reply_text(
-            "Everyone is online again, the game can continue!"
-        )
-    elif PHASE.LOBBY and len(game.players) == 10:
-        await _routine_start_game(context, game)
+            if len(game.players) == 10:
+                await _routine_start_game(context, game)
+
 
     return
 
@@ -224,6 +226,9 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
             )
 
         text += player.role.description()  # role description
+
+        if player.role == ROLE.MERLIN:
+            text += f"Evil team is composed of: {', '.join(evils)}.\n"
 
         await context.bot.send_message(
             chat_id=player.userid,

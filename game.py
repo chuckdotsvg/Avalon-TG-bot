@@ -155,10 +155,10 @@ class Game:
 
         self.team_sizes = constants.playersToRules[num_players][0]
 
+        random.shuffle(self.players)
+
         # assign roles
         self.__set_roles()
-
-        random.shuffle(self.players)
 
         self.leader_idx = random.randrange(num_players)
 
