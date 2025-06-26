@@ -1,5 +1,5 @@
 import json
-from typing import Any
+
 from telegram import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -7,14 +7,14 @@ from telegram import (
     Message,
     Update,
 )
+from telegram.constants import PollType as POLLTYPE
 from telegram.ext import (
     ContextTypes,
 )
 
 from game import Game
-from player import Player
 from gamephase import GamePhase as PHASE
-from telegram.constants import PollType as POLLTYPE
+from player import Player
 from role import Role as ROLE
 
 existingGames: dict[int, Game] = {}
@@ -87,11 +87,10 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
             game.player_join(p)
             await update.message.reply_html(
                 f"{user.mention_html()} has joined the game!\nRemember to start this bot in private chat",
-
             )
 
     if game.is_ongoing():
-    # notify the group if everyone is online
+        # notify the group if everyone is online
         await update.message.reply_text(
             "Everyone is online again, the game can continue!"
         )
@@ -177,6 +176,7 @@ async def handle_start_game(
         # this effectively starts the game
         await _routine_start_game(context, game)
 
+
 async def handle_delete_game(update: Update):
     """
     Handle the deletion of a game.
@@ -209,11 +209,24 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
     """
     game.start_game()
 
-    # TODO: send personalized messages to players
+    evils = [p.tg_name for p in game.players if not p.role[1]]
+
     for player in game.players:
+        text = f"Your role is: {player.role}.\n"  # now role can't be None
+
+        if player.role[1]:
+            text += "You are part of the good team. Complete 3 successful missions to win the game!\n\n"
+        else:
+            text += (
+                "You are part of the evil team. Sabotage the missions and prevent the good team from winning!\n"
+                f"Your evil teammates are: {', '.join(p for p in evils if p != player.tg_name)}.\n\n"
+            )
+
+        text += player.role.description()  # role description
+
         await context.bot.send_message(
             chat_id=player.userid,
-            text=f"Your role is: {player.role}.\n",  # now role can't be None
+            text=text,
         )
 
     await _routine_pre_team_building(context, game)
@@ -224,7 +237,9 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
     Routine to prepare the voting phase of the game (i.e. sending the poll to the team leader).
     """
     # notify players in the group about the voting phase
-    text = f"{game.players[game.leader_idx].tg_name} is the team leader for this round.\n"
+    text = (
+        f"{game.players[game.leader_idx].tg_name} is the team leader for this round.\n"
+    )
     text += "Wait for leader's team porposal"
 
     await context.bot.send_message(
@@ -241,7 +256,6 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
         POLLTYPE.REGULAR,
         None,
     )
-
 
 
 async def _send_people_vote_poll(
@@ -265,28 +279,28 @@ async def _send_people_vote_poll(
     """
 
     poll_kwargs = {
-            "chat_id": recipient,
-            "question": poll_msg,
-            "options": people_name,
-            "is_anonymous": False,
-            "type": poll_type,
-            "allows_multiple_answers": True,
-        }
+        "chat_id": recipient,
+        "question": poll_msg,
+        "options": people_name,
+        "is_anonymous": False,
+        "type": poll_type,
+        "allows_multiple_answers": True,
+    }
 
     if poll_type == "quiz" and correct_opt_id is not None:
         poll_kwargs["correct_option_id"] = correct_opt_id
 
     msg = await context.bot.send_poll(**poll_kwargs)
 
-        # msg = await context.bot.send_poll(
-        #     chat_id = recipient,
-        #     question = poll_msg,
-        #     options = people_name,
-        #     is_anonymous=False,
-        #     type = poll_type,
-        #     allows_multiple_answers=True,
-        #     correct_option_id=correct_opt_id,
-        # )
+    # msg = await context.bot.send_poll(
+    #     chat_id = recipient,
+    #     question = poll_msg,
+    #     options = people_name,
+    #     is_anonymous=False,
+    #     type = poll_type,
+    #     allows_multiple_answers=True,
+    #     correct_option_id=correct_opt_id,
+    # )
 
     payload = {
         msg.poll.id: (msg.message_id, game_id),
@@ -294,6 +308,7 @@ async def _send_people_vote_poll(
     context.bot_data.update(payload)
 
     return msg
+
 
 async def handle_build_team_answer(
     answer_team: tuple[int, ...],
@@ -351,7 +366,9 @@ async def _routine_pre_team_approval_phase(
         text="go to private chat to vote if the team is good or not.",
     )
 
-    await _send_pvt_decision_message("Do you approve the team?", game.players, context, game)
+    await _send_pvt_decision_message(
+        "Do you approve the team?", game.players, context, game
+    )
 
 
 async def _send_pvt_decision_message(
@@ -486,7 +503,9 @@ async def _routine_last_chance_phase(
 
     goods = [x for x in game.players if x.role[1]]
     merlin_idx = [x.role for x in goods].index(ROLE.MERLIN)
-    assassin_tg_id = game.players[[x.role for x in game.players].index(ROLE.MERLIN)].userid
+    assassin_tg_id = game.players[
+        [x.role for x in game.players].index(ROLE.MERLIN)
+    ].userid
 
     await _send_people_vote_poll(
         context,
@@ -502,7 +521,7 @@ async def _routine_last_chance_phase(
 async def handle_assassin_choice(
     msg_id: int, update: Update, context: ContextTypes.DEFAULT_TYPE, game_id: int
 ):
-    if not (assassin := update.effective_user) or not (answer := update.poll_answer):
+    if not (assassin := update.effective_user):
         return
 
     assassin_id = assassin.id
