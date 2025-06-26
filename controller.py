@@ -5,7 +5,6 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
-    PollAnswer,
     Update,
 )
 from telegram.ext import (
@@ -175,6 +174,31 @@ async def handle_start_game(
     # this effectively starts the game
     await _routine_start_game(context, game)
 
+async def handle_delete_game(update: Update):
+    """
+    Handle the deletion of a game.
+    """
+    if not update.message or not update.effective_user:
+        return
+
+    group_id = update.message.chat_id
+
+    # check if there is a game in the group
+    if group_id in existingGames.keys():
+        game = existingGames[group_id]
+
+        # check if the requesting user is the creator
+        if update.effective_user.id != game.creator.userid:
+            await update.message.reply_text("Only the creator can delete the game.")
+            return
+
+        # remove the game from the existing games
+        del existingGames[group_id]
+
+        await update.message.reply_text("The game has been deleted.")
+    else:
+        await update.message.reply_text("There is no game in this group.")
+
 
 async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
     """
@@ -186,8 +210,10 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
     for player in game.players:
         await context.bot.send_message(
             chat_id=player.userid,
-            text=f"Your role is: {player.role.name}.\n",  # now role can't be None
+            text=f"Your role is: {player.role}.\n",  # now role can't be None
         )
+
+    await _routine_pre_team_building(context, game)
 
 
 async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: Game):
@@ -195,8 +221,8 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
     Routine to prepare the voting phase of the game (i.e. sending the poll to the team leader).
     """
     # notify players in the group about the voting phase
-    text = f"The game has started! {game.players[game.leader_idx].tg_name} is the team leader for this round.\n"
-    text += "He will decide the current team, wait for his decision"
+    text = f"{game.players[game.leader_idx].tg_name} is the team leader for this round.\n"
+    text += "Wait for leader's team porposal"
 
     await context.bot.send_message(
         chat_id=game.id,
@@ -354,7 +380,7 @@ async def _routine_pre_mission_phase(context: ContextTypes.DEFAULT_TYPE, game: G
         text="The team has been approved! Team, go vote for the success of the mission.",
     )
 
-    _send_pvt_decision_message(
+    await _send_pvt_decision_message(
         "Do you want to make the mission successful?", game.team, context, game
     )
 
@@ -405,7 +431,6 @@ async def _routine_post_team_approval_phase(
     elif approval_result:
         # go to the mission phase
         await _routine_pre_mission_phase(context, game)
-        pass
     else:
         # repeat the team building phase
         await _routine_pre_team_building(context, game)
@@ -422,7 +447,7 @@ async def _routine_post_mission_phase(
 
     if game.winner:
         # evil have a last chance to win
-        _routine_last_chance_phase(context, game)
+        await _routine_last_chance_phase(context, game)
     elif not game.winner:
         # good lose immediately
         await context.bot.send_message(
@@ -431,7 +456,7 @@ async def _routine_post_mission_phase(
         )
     else:
         # repeat the team building phase
-        _routine_pre_team_building(context, game)
+        await _routine_pre_team_building(context, game)
 
 
 async def _routine_last_chance_phase(

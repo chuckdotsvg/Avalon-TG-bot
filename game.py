@@ -15,14 +15,13 @@ class Game:
         """
 
         self._id: int = id
-        self.turn: int = 9
+        self.turn: int = 0
         self.missions: list[bool | None] = [None, None, None, None, None]
         self.winner: bool | None = None
         self.rejection_count: int = 0
         self.votes: list[bool] = []
         self.creator: Player = creator
         self._players: list[Player] = [ creator ]
-        # self.team: dict[Player, bool | None] = {}
         self.team: list[Player] = []
         self.leader_idx: int = -1
         self.phase: PHASE = PHASE.LOBBY
@@ -61,7 +60,7 @@ class Game:
 
         return len(self.players) > 0 and any(p.is_online for p in self.players)
 
-    def update_winner(self):
+    def __update_winner(self):
         # bad win if there are 3 or more rejections too
         self.winner = (
             self.rejection_count >= 3
@@ -77,13 +76,13 @@ class Game:
         """
         self.winner = choice.role == ROLE.MERLIN
 
-    def update_after_mission(self) -> bool:
+    def update_after_mission(self):
         """
         Updates the missions with the results of the last votes, and increments the turn.
         :return: True if the mission was successful, False otherwise.
         """
         # if player count is 7 or more, good win if there are 2 or less false votes on the 4th mission
-        result = self.votes.count(False) <= (self.turn == 4 and len(self.players) >= 7)
+        result = self.votes.count(False) <= (self.turn + 1 == 4 and len(self.players) >= 7) # consider indexing from 0
 
         self.missions[self.turn] = result
         self.turn += 1
@@ -91,20 +90,17 @@ class Game:
         # TODO: check if the game is over
         # self.winner = Counter(self.missions).most_common(1)[0][0] or None
 
-        return result
-
     def update_after_team_decision(self) -> bool:
         """
         Updates the game state after a team has been approved or rejected.
         :return: True if the team was approved, False otherwise.
         """
 
-        # if player count is 7 or more, good win if there are 2 or less false votes
         result = self.votes.count(True) >= len(self.votes) / 2
         self.__setup_new_election(result)
 
-        # TODO: check if the game is over
-        # self.winner = self.rejection_count >= 3 or None
+        # if rejected 3 times, the game is over
+        self.__update_winner()
 
         return result
 
@@ -137,17 +133,15 @@ class Game:
         Changes the phase of the game based on the current phase.
         Called at the end of each phase.
         """
-        if self.phase == PHASE.BUILD_TEAM:
+        if self.phase == PHASE.LOBBY:
+            self.phase = PHASE.BUILD_TEAM
+        elif self.phase == PHASE.BUILD_TEAM:
             self.phase = PHASE.QUEST
-            # fai cose
         elif self.phase == PHASE.QUEST:
-            if self.winner is not None:
-                if not self.winner:
-                    self.phase = PHASE.GAME_OVER
-                else:
-                    self.phase = PHASE.LAST_CHANCE
-            else:
+            if self.winner is None:
                 self.phase = PHASE.BUILD_TEAM
+            elif self.winner:
+                    self.phase = PHASE.LAST_CHANCE
 
     def start_game(self):
         """
@@ -178,15 +172,22 @@ class Game:
         ].count(True)
         num_of_minions = num_players - num_of_servants - num_special
 
-        i = j = k = 0
+        current_index = 0
+
+        # Assign special roles
         for i in range(num_special):
-            self.players[i].role = self.special_roles[i]
+            self.players[current_index].role = self.special_roles[i]
+            current_index += 1
 
-        for j in range(num_of_servants):
-            self.players[j + i + 1].role = ROLE.LSOA
+        # Assign servant roles
+        for _ in range(num_of_servants):
+            self.players[current_index].role = ROLE.LSOA
+            current_index += 1
 
-        for k in range(num_of_minions):
-            self.players[k + j + i + 1].role = ROLE.MOM
+        # Assign minion roles
+        for _ in range(num_of_minions):
+            self.players[current_index].role = ROLE.MOM
+            current_index += 1
 
     def __setup_new_election(self, result: bool):
         """
@@ -195,7 +196,14 @@ class Game:
         """
         # Reset the votes and rejection count for a new election
         self.votes.clear()
-        self.rejection_count = not result
+
+        # change phase to QUEST if the team was approved, otherwise stay in BUILD_TEAM
+        if result:
+            self.__change_phase()
+
+        # if team rejected, increment the rejection count, else reset it
+        self.rejection_count = (self.rejection_count + 1) * (not result)
+
         self.leader_idx = (self.leader_idx + 1) % len(self.players)
 
     def create_team(self, team: list[Player]):

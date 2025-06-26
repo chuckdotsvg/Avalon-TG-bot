@@ -5,3 +5,4 @@ join - Join an existing game
 leave - Leave the current game
 startgame - Start the current game
 privatepoll - test
+delete - delete an existing game in current chat

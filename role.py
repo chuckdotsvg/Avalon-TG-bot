@@ -3,6 +3,7 @@ from enum import Enum
 class Role(Enum):
     MERLIN = ("Merlin", True)
     LSOA = ("Loyal Servant of Arthur", True)
+
     ASSASSIN = ("Assassin", False)
     MOM = ("Minion of Mordred", False)
 

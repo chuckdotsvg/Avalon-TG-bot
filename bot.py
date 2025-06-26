@@ -20,6 +20,7 @@ from controller import (
     handle_leave_game,
     handle_start_game,
     handle_assassin_choice,
+    handle_delete_game,
 )
 from gamephase import GamePhase as PHASE
 
@@ -75,6 +76,9 @@ async def leave_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await handle_start_game(update, context)
 
+async def delete_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await handle_delete_game(update)
+
 
 async def button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle button presses."""
@@ -102,7 +106,7 @@ async def receive_poll_answer(
 
     poll_msg_id, game_id = context.bot_data[answer.poll_id]
 
-    # check if the poll is in the bot data
+    # check if the poll is in the bot data, shouldn't happen
     if not (game := existingGames.get(game_id)):
         return
 
@@ -174,6 +178,7 @@ def main() -> None:
     application.add_handler(CommandHandler("join", join_game))
     application.add_handler(CommandHandler("leave", leave_game))
     application.add_handler(CommandHandler("startgame", start_game))
+    application.add_handler(CommandHandler("delete", delete_game))
     # application.add_handler(CommandHandler("privatepoll", private_poll_test))
     application.add_handler(CallbackQueryHandler(button_vote))
     application.add_handler(PollAnswerHandler(receive_poll_answer))
