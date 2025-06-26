@@ -420,9 +420,7 @@ async def _routine_pre_mission_phase(context: ContextTypes.DEFAULT_TYPE, game: G
         f"Missions so far: {_bool_to_emoji([x for x in game.missions if x is not None])}.\n"
     )
 
-    await _send_pvt_decision_message(
-        question, game.team, context, game
-    )
+    await _send_pvt_decision_message(question, game.team, context, game)
 
 
 async def button_vote_handler(
@@ -506,9 +504,7 @@ async def _routine_post_mission_phase(
     text = (
         f"The mission was {'successful' if result else 'failed'}!\n"
         f"Votes: {_bool_to_emoji(game.votes)}.\n"
-        f"Missions so far: {
-            _bool_to_emoji([x for x in game.missions if x is not None])
-        }.\n"
+        f"Missions so far: {_bool_to_emoji([x for x in game.missions if x is not None])}.\n"
     )
     # send the result to the group chat
     await context.bot.send_message(
