@@ -9,3 +9,5 @@ playersToRules = {
     9: ([3, 4, 4, 5, 5], 6),
     10: ([3, 4, 4, 5, 5], 6),
 }
+
+MAX_TEAM_REJECTS = 3

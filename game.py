@@ -63,7 +63,7 @@ class Game:
     def __update_winner(self):
         # bad win if there are 3 or more rejections too
         self.winner = (
-            self.rejection_count >= 3
+            self.rejection_count >= constants.MAX_TEAM_REJECTS
             or Counter(self.missions).most_common(1)[0][0]
             or None
         )
@@ -76,7 +76,7 @@ class Game:
         """
         self.winner = choice.role == ROLE.MERLIN
 
-    def update_after_mission(self):
+    def update_after_mission(self) -> bool:
         """
         Updates the missions with the results of the last votes, and increments the turn.
         :return: True if the mission was successful, False otherwise.
@@ -89,6 +89,8 @@ class Game:
 
         # TODO: check if the game is over
         # self.winner = Counter(self.missions).most_common(1)[0][0] or None
+
+        return result
 
     def update_after_team_decision(self) -> bool:
         """
@@ -113,7 +115,9 @@ class Game:
         # list of votes is empty at the beginning of the voting phase
         self.votes.append(vote)
 
-        return len(self.votes) == len(self.team)
+        required_votes = len(self.team if self.phase == PHASE.QUEST else self.players)
+
+        return len(self.votes) == required_votes
 
     def lookup_player(self, id: int) -> Player | None:
         """

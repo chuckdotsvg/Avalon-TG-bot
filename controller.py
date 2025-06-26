@@ -12,6 +12,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
+from constants import MAX_TEAM_REJECTS
 from game import Game
 from gamephase import GamePhase as PHASE
 from player import Player
@@ -363,12 +364,16 @@ async def _routine_pre_team_approval_phase(
     # notify players in the group about the voting phase
     await context.bot.send_message(
         chat_id=game.id,
-        text="go to private chat to vote if the team is good or not.",
+        text="Go to private chat to vote if the team is good or not.",
     )
 
-    await _send_pvt_decision_message(
-        "Do you approve the team?", game.players, context, game
+    question = (
+        f"{game.players[game.leader_idx].tg_name} has proposed the following team:\n"
+        f"{', '.join(p.tg_name for p in game.team)}.\n"
+        "Do you approve this team?"
     )
+
+    await _send_pvt_decision_message(question, game.players, context, game)
 
 
 async def _send_pvt_decision_message(
@@ -410,8 +415,13 @@ async def _routine_pre_mission_phase(context: ContextTypes.DEFAULT_TYPE, game: G
         text="The team has been approved! Team, go vote for the success of the mission.",
     )
 
+    question = (
+        "Do you want to make the mission successful?\n"
+        f"Missions so far: {_bool_to_emoji([x for x in game.missions if x is not None])}.\n"
+    )
+
     await _send_pvt_decision_message(
-        "Do you want to make the mission successful?", game.team, context, game
+        question, game.team, context, game
     )
 
 
@@ -456,14 +466,33 @@ async def _routine_post_team_approval_phase(
 
     approval_result = game.update_after_team_decision()
 
+    text = (
+        f"The team was {'approved' if approval_result else 'rejected'}!\n"
+        f"Votes: {_bool_to_emoji(game.votes)}.\n"
+    )
+
+    if 0 < game.rejection_count < MAX_TEAM_REJECTS:
+        text += (
+            "Vote will be repeated again.\n"
+            "⚠️ If the team is rejected 3 times in a row, evils win!\n"
+            f"Remaining attempts: {MAX_TEAM_REJECTS - game.rejection_count}.\n"
+        )
+
+    # send the result to the group chat
+    await context.bot.send_message(
+        chat_id=game.id,
+        text=text,
+    )
+
     if game.winner is not None:
         await _routine_end_game(context, game.id)
-    elif approval_result:
-        # go to the mission phase
-        await _routine_pre_mission_phase(context, game)
     else:
-        # repeat the team building phase
-        await _routine_pre_team_building(context, game)
+        if approval_result:
+            # go to the mission phase
+            await _routine_pre_mission_phase(context, game)
+        else:
+            # repeat the team building phase
+            await _routine_pre_team_building(context, game)
 
 
 async def _routine_post_mission_phase(
@@ -473,20 +502,34 @@ async def _routine_post_mission_phase(
     Routine to send the correct message after the mission phase, based on the voting results.
     """
 
-    game.update_after_mission()
+    result = game.update_after_mission()
+    text = (
+        f"The mission was {'successful' if result else 'failed'}!\n"
+        f"Votes: {_bool_to_emoji(game.votes)}.\n"
+        f"Missions so far: {
+            _bool_to_emoji([x for x in game.missions if x is not None])
+        }.\n"
+    )
+    # send the result to the group chat
+    await context.bot.send_message(
+        chat_id=game.id,
+        text=text,
+    )
 
-    if game.winner:
+    if game.winner is None:
+        # repeat the team building phase
+        await _routine_pre_team_building(context, game)
+    elif game.winner:
         # evil have a last chance to win
         await _routine_last_chance_phase(context, game)
-    elif not game.winner:
+    else:
         # good lose immediately
         await context.bot.send_message(
             chat_id=game.id,
-            text="More than 3 mission failed! The good team loses.",
+            text="3 mission failed!",
         )
-    else:
-        # repeat the team building phase
-        await _routine_pre_team_building(context, game)
+
+        await _routine_end_game(context, game.id)
 
 
 async def _routine_last_chance_phase(
@@ -498,7 +541,7 @@ async def _routine_last_chance_phase(
     # notify players in the group about the last chance phase
     await context.bot.send_message(
         chat_id=game.id,
-        text="The evil team has a last chance to win the game. Assassin, choose a player to assassinate! If you choose the Merlin, you win the game.",
+        text="The evil team has a last chance to win the game. Assassin, choose a player to kill! If you choose Merlin, you win the game.",
     )
 
     goods = [x for x in game.players if x.role[1]]
@@ -543,3 +586,12 @@ async def _routine_end_game(context: ContextTypes.DEFAULT_TYPE, game_id: int) ->
 
     # cleanup the game
     del existingGames[game_id]
+
+
+def _bool_to_emoji(votes: list[bool]) -> str:
+    """
+    Convert a list of votes to a string representation.
+    :param votes: list of boolean votes
+    :return: string representation of the votes
+    """
+    return "".join("✅" if x else "❌" for x in votes)
