@@ -5,6 +5,7 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
+    PollAnswer,
     Update,
 )
 from telegram.constants import PollType as POLLTYPE
@@ -535,7 +536,7 @@ async def _routine_post_team_approval_phase(
     )
 
     if game.winner is not None:
-        await _routine_end_game(context, game.id)
+        await _routine_end_game(context, game)
     else:
         if approval_result:
             # go to the mission phase
@@ -577,7 +578,7 @@ async def _routine_post_mission_phase(
             text="3 mission failed!",
         )
 
-        await _routine_end_game(context, game.id)
+        await _routine_end_game(context, game)
 
 
 async def _routine_last_chance_phase(
@@ -595,7 +596,7 @@ async def _routine_last_chance_phase(
     goods = [x for x in game.players if x.role[1]]
     merlin_idx = [x.role for x in goods].index(ROLE.MERLIN)
     assassin_tg_id = game.players[
-        [x.role for x in game.players].index(ROLE.MERLIN)
+        [x.role for x in game.players].index(ROLE.ASSASSIN)
     ].userid
 
     await _send_people_vote_poll(
@@ -610,30 +611,48 @@ async def _routine_last_chance_phase(
 
 
 async def handle_assassin_choice(
-    msg_id: int, update: Update, context: ContextTypes.DEFAULT_TYPE, game_id: int
+    answer: PollAnswer,
+    msg_id: int,
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    game: Game,
 ):
     if not (assassin := update.effective_user):
         return
 
-    assassin_id = assassin.id
-
     await context.bot.stop_poll(
-        chat_id=assassin_id,
+        chat_id=assassin.id,
         message_id=msg_id,
         reply_markup=None,
     )
 
-    await _routine_end_game(context, game_id)
+    # TODO: handle possible errors
+    answered_player_idx = answer.option_ids[0]
 
+    game.update_winner_after_assassination(answered_player_idx)
 
-async def _routine_end_game(context: ContextTypes.DEFAULT_TYPE, game_id: int) -> None:
+    text = (
+        f"{assassin.full_name} has chosen to assassinate {game.players[answered_player_idx].tg_name}!\n"
+        f"The guess was {'correct' if game.winner else 'incorrect'}!\n"
+    )
+
     await context.bot.send_message(
-        chat_id=game_id,
-        text=f"{existingGames[game_id].winner and 'Good' or 'Evil'} team wins the game!",
+        chat_id=game.id,
+        text=text,
+    )
+    # TODO: send poll result to the group chat
+
+    await _routine_end_game(context, game)
+
+
+async def _routine_end_game(context: ContextTypes.DEFAULT_TYPE, game: Game) -> None:
+    await context.bot.send_message(
+        chat_id=game.id,
+        text=f"{game.winner and 'Good' or 'Evil'} team wins the game!",
     )
 
     # cleanup the game
-    del existingGames[game_id]
+    del existingGames[game.id]
 
 
 def _bool_to_emoji(votes: list[bool]) -> str:

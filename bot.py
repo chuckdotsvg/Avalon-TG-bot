@@ -113,7 +113,7 @@ async def receive_poll_answer(
     if game.phase == PHASE.BUILD_TEAM:
         await handle_build_team_answer(answer.option_ids, poll_msg_id, context, game)
     elif game.phase == PHASE.LAST_CHANCE:
-        await handle_assassin_choice(poll_msg_id, update, context, game.id)
+        await handle_assassin_choice(answer.options_id, poll_msg_id, update, context, game)
 
 
 async def receive_poll_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

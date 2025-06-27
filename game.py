@@ -68,12 +68,12 @@ class Game:
             or None
         )
 
-    def update_winner_after_assassination(self, choice: Player):
+    def update_winner_after_assassination(self, choice_idx: int):
         """
         Handles the assassin's choice at the end of the game.
         :param choice: Player object representing the chosen player.
-        :return: True if the assassin guessed correctly, False otherwise.
         """
+        choice = self.players[choice_idx]
         self.winner = choice.role == ROLE.MERLIN
 
     def update_after_mission(self) -> bool:
