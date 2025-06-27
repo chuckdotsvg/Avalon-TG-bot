@@ -99,7 +99,6 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if len(game.players) == 10:
                 await _routine_start_game(context, game)
 
-
     return
 
 
@@ -244,9 +243,10 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
     """
     # notify players in the group about the voting phase
     text = (
+        f"Turn {game.turn + 1} has started!\n"
         f"{game.players[game.leader_idx].tg_name} is the team leader for this round.\n"
+        "Wait for leader's team porposal"
     )
-    text += "Wait for leader's team porposal"
 
     await context.bot.send_message(
         chat_id=game.id,

@@ -87,6 +87,8 @@ class Game:
         self.missions[self.turn] = result
         self.turn += 1
 
+        self.__change_phase()
+
         # TODO: check if the game is over
         # self.winner = Counter(self.missions).most_common(1)[0][0] or None
 
