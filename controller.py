@@ -512,7 +512,7 @@ async def _routine_post_team_approval_phase(
     Routine to send the correct message after the team approval phase, based on the voting results.
     """
 
-    votes = game.votes
+    votes = game.votes.copy()
 
     # this updates the game state
     approval_result = game.update_after_team_decision()
@@ -553,10 +553,12 @@ async def _routine_post_mission_phase(
     Routine to send the correct message after the mission phase, based on the voting results.
     """
 
+    votes = game.votes.copy()
+
     result = game.update_after_mission()
     text = (
         f"The mission was {'successful' if result else 'failed'}!\n"
-        f"Votes: {_bool_to_emoji(game.votes)}.\n"
+        f"Votes: {_bool_to_emoji(votes)}.\n"
         f"Missions so far: {_bool_to_emoji([x for x in game.missions if x is not None])}.\n"
     )
     # send the result to the group chat
