@@ -248,13 +248,14 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
     # notify players in the group about the voting phase
     text = (
         f"Turn {game.turn + 1} has started!\n"
-        f"{game.players[game.leader_idx].tg_name} is the team leader for this round.\n"
+        f"{_mention_html(game.players[game.leader_idx])} is the team leader for this round.\n"
         "Wait for leader's team porposal"
     )
 
     await context.bot.send_message(
         chat_id=game.id,
         text=text,
+        parse_mode="HTML",
     )
 
     await _send_people_vote_poll(
@@ -355,9 +356,17 @@ async def handle_build_team_answer(
         )
 
         # send the result to the group chat
-        await context.bot.send_message(
+        # await context.bot.send_message(
+        #     chat_id=game.id,
+        #     text=f"The voted team is: {', '.join(_mention_html(p) for p in game.team)}.",
+        #     parse_mode="HTML",
+        # )
+
+        # forward the poll to the group chat
+        await context.bot.forward_message(
             chat_id=game.id,
-            text=f"The voted team is: {', '.join(p.tg_name for p in game.team)}.",
+            from_chat_id=leader_userid,
+            message_id=message_id,
         )
 
         # go to the team approval phase
@@ -636,16 +645,20 @@ async def handle_assassin_choice(
 
     game.update_winner_after_assassination(assassin_guess)
 
-    text = (
-        f"{assassin.full_name} has chosen to assassinate {game.players[assassin_guess].tg_name}!\n"
-        f"The guess was {'correct' if game.winner else 'incorrect'}!\n"
-    )
+    # text = (
+    #     f"{assassin.full_name} has chosen to assassinate {game.players[assassin_guess].tg_name}!\n"
+    #     f"The guess was {'correct' if game.winner else 'incorrect'}!\n"
+    # )
+    #
+    # await context.bot.send_message(
+    #     chat_id=game.id,
+    #     text=text,
+    # )
 
-    await context.bot.send_message(
-        chat_id=game.id,
-        text=text,
+    await assassin.forward_messages_to(
+        game.id,
+        [msg_id], # requires sequence of messageIDs
     )
-    # TODO: send poll result to the group chat
 
     await _routine_end_game(context, game)
 
@@ -667,3 +680,12 @@ def _bool_to_emoji(votes: list[bool]) -> str:
     :return: string representation of the votes
     """
     return "".join("✅" if x else "❌" for x in votes)
+
+
+def _mention_html(user: Player) -> str:
+    """
+    Return the HTML mention of a user.
+    :param user: the user to mention
+    :return: the HTML mention of the user
+    """
+    return f'<a href="tg://user?id={user.userid}">{user.tg_name}</a>'
