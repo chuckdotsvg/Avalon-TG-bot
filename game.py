@@ -60,7 +60,7 @@ class Game:
 
                 # if the creator leaves in lobby, give the command to another player
                 if self.creator == player:
-                    creator = self.players[random.randrange(len(self.players))]
+                    self.creator = self.players[random.randrange(len(self.players))]
 
         return any(p.is_online for p in self.players)
 
