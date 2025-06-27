@@ -611,7 +611,7 @@ async def _routine_last_chance_phase(
 
 
 async def handle_assassin_choice(
-    answer: PollAnswer,
+    answer: tuple[int, ...],
     msg_id: int,
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -627,12 +627,12 @@ async def handle_assassin_choice(
     )
 
     # TODO: handle possible errors
-    answered_player_idx = answer.option_ids[0]
+    assassin_guess = answer[0]
 
-    game.update_winner_after_assassination(answered_player_idx)
+    game.update_winner_after_assassination(assassin_guess)
 
     text = (
-        f"{assassin.full_name} has chosen to assassinate {game.players[answered_player_idx].tg_name}!\n"
+        f"{assassin.full_name} has chosen to assassinate {game.players[assassin_guess].tg_name}!\n"
         f"The guess was {'correct' if game.winner else 'incorrect'}!\n"
     )
 
