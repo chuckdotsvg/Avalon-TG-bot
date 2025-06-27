@@ -128,20 +128,28 @@ async def handle_leave_game(update: Update):
                 "You are not in the game. Please join first."
             )
         else:
-            text = (
-                f"{user.mention_html()} has left the game!\n"
-                f" Players waiting: {', '.join(p.tg_name for p in game.players if p.is_online)}"
-            )
-            await update.message.reply_html(f"{user.mention_html()} has left the game!")
-
             # if there are no players left, remove the Game
             if not game.player_leave(player):
                 # remove the game from the existing games
                 del existingGames[group_id]
 
-                await update.message.reply_text(
-                    "All players have left the game. The game has been removed."
+                text = "All players have left the game. The game has been removed."
+
+            else:
+                text = (
+                    f"{user.mention_html()} has left the game!\n"
+                    f" Players waiting: {', '.join(p.tg_name for p in game.players if p.is_online)}\n"
                 )
+
+                # notify the group about the new creator, in case the creator left
+                # TODO: highlight the (new) creator
+                if player == game.creator:
+                    text += (
+                        "The old creator left\n"
+                        f"New creator is: {game.creator}.\n"
+                    )
+
+            await update.message.reply_html(text)
 
     else:
         await update.message.reply_text(

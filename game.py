@@ -58,7 +58,11 @@ class Game:
                 # if the game is in lobby, remove the player from the game
                 del self.players[index]
 
-        return len(self.players) > 0 and any(p.is_online for p in self.players)
+                # if the creator leaves in lobby, give the command to another player
+                if self.creator == player:
+                    creator = self.players[random.randrange(len(self.players))]
+
+        return any(p.is_online for p in self.players)
 
     def __update_winner(self):
         # bad win if there are 3 or more rejections too
