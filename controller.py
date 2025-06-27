@@ -95,7 +95,8 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
             game.player_join(p)
 
             text = (
-                f"{user.mention_html()} has joined the game!\nRemember to start this bot in private chat"
+                f"{user.mention_html()} has joined the game!"
+                "Remember to start this bot in private chat\n"
                 f"Players waiting: {', '.join(p.tg_name for p in game.players)}"
             )
             await update.message.reply_html(text)
@@ -127,6 +128,10 @@ async def handle_leave_game(update: Update):
                 "You are not in the game. Please join first."
             )
         else:
+            text = (
+                f"{user.mention_html()} has left the game!\n"
+                f" Players waiting: {', '.join(p.tg_name for p in game.players if p.is_online)}"
+            )
             await update.message.reply_html(f"{user.mention_html()} has left the game!")
 
             # if there are no players left, remove the Game
@@ -657,7 +662,7 @@ async def handle_assassin_choice(
 
     await assassin.forward_messages_to(
         game.id,
-        [msg_id], # requires sequence of messageIDs
+        [msg_id],  # requires sequence of messageIDs
     )
 
     await _routine_end_game(context, game)
