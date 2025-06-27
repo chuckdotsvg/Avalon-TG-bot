@@ -65,10 +65,11 @@ class Game:
         return any(p.is_online for p in self.players)
 
     def __update_winner(self):
-        # bad win if there are 3 or more rejections too
+        win, win_count = Counter(self.missions).most_common(1)[0]
         self.winner = (
+            # bad win if there are 3 or more rejections too
             self.rejection_count >= constants.MAX_TEAM_REJECTS
-            or Counter(self.missions).most_common(1)[0][0]
+            or (win and win_count > len(self.missions) / 2)
             or None
         )
 
