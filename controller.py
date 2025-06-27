@@ -93,9 +93,12 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             game.player_join(p)
-            await update.message.reply_html(
-                f"{user.mention_html()} has joined the game!\nRemember to start this bot in private chat",
+
+            text = (
+                f"{user.mention_html()} has joined the game!\nRemember to start this bot in private chat"
+                f"Players waiting: {', '.join(p.tg_name for p in game.players)}"
             )
+            await update.message.reply_html(text)
 
             if len(game.players) == 10:
                 await _routine_start_game(context, game)
