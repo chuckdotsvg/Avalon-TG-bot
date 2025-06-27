@@ -379,6 +379,50 @@ async def _routine_pre_team_approval_phase(
     )
 
     await _send_pvt_decision_message(question, game.players, context, game)
+    # await _send_people_vote_poll(
+    #     context, game.id, game.id, ["yes", "no"], question, POLLTYPE.REGULAR, None
+    # )
+
+
+async def handle_team_approval_answer(
+    answer_team: tuple[int, ...],
+    message_id: int,
+    context: ContextTypes.DEFAULT_TYPE,
+    game: Game,
+) -> None:
+    """Handle the answer to the team approval poll."""
+
+    # TODO: replace message with warning
+    if (voted_team_size := len(answer_team)) != game.team_sizes[game.turn]:
+        await context.bot.send_message(
+            chat_id=leader_userid,
+            text=f"You have selected {voted_team_size} players, but you need to select {game.team_sizes[game.turn]} players.",
+        )
+    else:
+        # stop the poll if the team size is correct
+        await context.bot.stop_poll(
+            chat_id=leader_userid,
+            message_id=message_id,
+            reply_markup=None,
+        )
+
+        # player order in poll has the same order as in game.players, so indexing is safe
+        game.create_team([game.players[i] for i in answer_team])
+
+        # close poll and update game state
+        await context.bot.send_message(
+            chat_id=leader_userid,
+            text="Let's see if the others approve the team... go back to the game.",
+        )
+
+        # send the result to the group chat
+        await context.bot.send_message(
+            chat_id=game.id,
+            text=f"The voted team is: {', '.join(p.tg_name for p in game.team)}.",
+        )
+
+        # go to the team approval phase
+        await _routine_pre_team_approval_phase(context, game)
 
 
 async def _send_pvt_decision_message(
@@ -467,11 +511,14 @@ async def _routine_post_team_approval_phase(
     Routine to send the correct message after the team approval phase, based on the voting results.
     """
 
+    votes = game.votes
+
+    # this updates the game state
     approval_result = game.update_after_team_decision()
 
     text = (
         f"The team was {'approved' if approval_result else 'rejected'}!\n"
-        f"Votes: {_bool_to_emoji(game.votes)}.\n"
+        f"Votes: {_bool_to_emoji(votes)}.\n"
     )
 
     if 0 < game.rejection_count < MAX_TEAM_REJECTS:

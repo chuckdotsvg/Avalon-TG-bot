@@ -21,7 +21,7 @@ class Game:
         self.rejection_count: int = 0
         self.votes: list[bool] = []
         self.creator: Player = creator
-        self._players: list[Player] = [ creator ]
+        self._players: list[Player] = [creator]
         self.team: list[Player] = []
         self.leader_idx: int = -1
         self.phase: PHASE = PHASE.LOBBY
@@ -82,15 +82,18 @@ class Game:
         :return: True if the mission was successful, False otherwise.
         """
         # if player count is 7 or more, good win if there are 2 or less false votes on the 4th mission
-        result = self.votes.count(False) <= (self.turn + 1 == 4 and len(self.players) >= 7) # consider indexing from 0
+        result = self.votes.count(False) <= (
+            self.turn + 1 == 4 and len(self.players) >= 7
+        )  # consider indexing from 0
 
         self.missions[self.turn] = result
         self.turn += 1
 
+        self.__update_winner()
+
         self.__change_phase()
 
-        # TODO: check if the game is over
-        # self.winner = Counter(self.missions).most_common(1)[0][0] or None
+        self.votes.clear()  # clear votes for the next phase
 
         return result
 
@@ -147,7 +150,7 @@ class Game:
             if self.winner is None:
                 self.phase = PHASE.BUILD_TEAM
             elif self.winner:
-                    self.phase = PHASE.LAST_CHANCE
+                self.phase = PHASE.LAST_CHANCE
 
     def start_game(self):
         """
@@ -224,7 +227,9 @@ class Game:
         Checks if the game is currently ongoing.
         :return: True if not in lobby and everyone is online, False otherwise.
         """
-        return self.phase != PHASE.LOBBY and False not in [p.is_online for p in self.players]
+        return self.phase != PHASE.LOBBY and False not in [
+            p.is_online for p in self.players
+        ]
 
     @property
     def players(self):
