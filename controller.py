@@ -95,7 +95,7 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
             game.player_join(p)
 
             text = (
-                f"{user.mention_html()} has joined the game!"
+                f"{user.mention_html()} has joined the game!\n"
                 "Remember to start this bot in private chat\n"
                 f"Players waiting: {', '.join(str(p) for p in game.players)}"
             )
@@ -130,9 +130,7 @@ async def handle_leave_game(update: Update):
         else:
             # notify the group about the new creator, in case the old one left
             # TODO: highlight the (new) creator
-            creator_txt = ""
-            if player == game.creator:
-                creator_txt = f"The old creator left\nNew creator is: {game.creator}.\n"
+            old_name = str(player)
 
             # if there are no players left, remove the Game
             if not game.player_leave(player):
@@ -145,8 +143,12 @@ async def handle_leave_game(update: Update):
                 text = (
                     f"{user.mention_html()} has left the game!\n"
                     f" Players waiting: {', '.join(str(p) for p in game.players if p.is_online)}\n"
-                    f"{creator_txt}"
                 )
+                if old_name != str(game.creator):
+                    text += (
+                        "The game creator has left!\n"
+                        f"{game.creator.mention()} is the new creator.\n"
+                    )
 
             await update.message.reply_html(text)
 
