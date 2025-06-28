@@ -1,4 +1,3 @@
-from game import Game
 from role import Role as ROLE
 
 class Player:
