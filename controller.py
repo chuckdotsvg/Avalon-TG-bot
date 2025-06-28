@@ -97,7 +97,7 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text = (
                 f"{user.mention_html()} has joined the game!"
                 "Remember to start this bot in private chat\n"
-                f"Players waiting: {', '.join(p.tg_name for p in game.players)}"
+                f"Players waiting: {', '.join(str(p) for p in game.players)}"
             )
             await update.message.reply_html(text)
 
@@ -128,6 +128,12 @@ async def handle_leave_game(update: Update):
                 "You are not in the game. Please join first."
             )
         else:
+            # notify the group about the new creator, in case the old one left
+            # TODO: highlight the (new) creator
+            creator_txt = ""
+            if player == game.creator:
+                creator_txt = f"The old creator left\nNew creator is: {game.creator}.\n"
+
             # if there are no players left, remove the Game
             if not game.player_leave(player):
                 # remove the game from the existing games
@@ -138,13 +144,9 @@ async def handle_leave_game(update: Update):
             else:
                 text = (
                     f"{user.mention_html()} has left the game!\n"
-                    f" Players waiting: {', '.join(p.tg_name for p in game.players if p.is_online)}\n"
+                    f" Players waiting: {', '.join(str(p) for p in game.players if p.is_online)}\n"
+                    f"{creator_txt}"
                 )
-
-                # notify the group about the new creator, in case the creator left
-                # TODO: highlight the (new) creator
-                if player == game.creator:
-                    text += f"The old creator left\nNew creator is: {game.creator}.\n"
 
             await update.message.reply_html(text)
 
@@ -225,23 +227,23 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
     """
     game.start_game()
 
-    evils = [p.tg_name for p in game.players if not p.role[1]]
+    evils = [p for p in game.players if not p.is_good()]
 
     for player in game.players:
         text = f"Your role is: {player.role}.\n"  # now role can't be None
 
-        if player.role[1]:
+        if player.is_good():
             text += "You are part of the good team. Complete 3 successful missions to win the game!\n\n"
         else:
             text += (
                 "You are part of the evil team. Sabotage the missions and prevent the good team from winning!\n"
-                f"Your evil teammates are: {', '.join(p for p in evils if p != player.tg_name)}.\n\n"
+                f"Your evil teammates are: {', '.join(str(p) for p in evils if p != player)}.\n\n"
             )
 
         text += player.role.description()  # role description
 
         if player.role == ROLE.MERLIN:
-            text += f"Evil team is composed of: {', '.join(evils)}.\n"
+            text += f"Evil team is composed of: {', '.join(str(evils))}.\n"
 
         await context.bot.send_message(
             chat_id=player.userid,
@@ -258,7 +260,7 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
     # notify players in the group about the voting phase
     text = (
         f"Turn {game.turn + 1} has started!\n"
-        f"{_mention_html(game.players[game.leader_idx])} is the team leader for this round.\n"
+        f"{game.players[game.leader_idx].mention()} is the team leader for this round.\n"
         "Wait for leader's team porposal"
     )
 
@@ -272,7 +274,7 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
         context,
         game.id,
         game.players[game.leader_idx].userid,
-        [x.tg_name for x in game.players],
+        [str(x) for x in game.players],
         f"Leader, select a team of {game.team_sizes[game.turn]} players",
         POLLTYPE.REGULAR,
         None,
@@ -396,8 +398,8 @@ async def _routine_pre_team_approval_phase(
     )
 
     question = (
-        f"{game.players[game.leader_idx].tg_name} has proposed the following team:\n"
-        f"{', '.join(p.tg_name for p in game.team)}.\n"
+        f"{game.players[game.leader_idx]} has proposed the following team:\n"
+        f"{', '.join(str(p) for p in game.team)}.\n"
         "Do you approve this team?"
     )
 
@@ -617,7 +619,7 @@ async def _routine_last_chance_phase(
         text="The evil team has a last chance to win the game. Assassin, choose a player to kill! If you choose Merlin, you win the game.",
     )
 
-    goods = [x for x in game.players if x.role[1]]
+    goods = [x for x in game.players if x.is_good()]
     merlin_idx = [x.role for x in goods].index(ROLE.MERLIN)
     assassin_tg_id = game.players[
         [x.role for x in game.players].index(ROLE.ASSASSIN)
@@ -627,7 +629,7 @@ async def _routine_last_chance_phase(
         context,
         game.id,
         assassin_tg_id,
-        [x.tg_name for x in goods],
+        [str(x) for x in goods],
         "Assassin, try to kill Merlin... who you want to kill?",
         POLLTYPE.QUIZ,
         merlin_idx,
@@ -690,12 +692,3 @@ def _bool_to_emoji(votes: list[bool]) -> str:
     :return: string representation of the votes
     """
     return "".join("✅" if x else "❌" for x in votes)
-
-
-def _mention_html(user: Player) -> str:
-    """
-    Return the HTML mention of a user.
-    :param user: the user to mention
-    :return: the HTML mention of the user
-    """
-    return f'<a href="tg://user?id={user.userid}">{user.tg_name}</a>'
