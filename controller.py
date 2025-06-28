@@ -243,7 +243,7 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
         text += player.role.description()  # role description
 
         if player.role == ROLE.MERLIN:
-            text += f"Evil team is composed of: {', '.join(str(evils))}.\n"
+            text += f"Evil team is composed of: {', '.join(str(p) for  p in evils)}.\n"
 
         await context.bot.send_message(
             chat_id=player.userid,
