@@ -83,7 +83,7 @@ class Game:
         goods = [p for p in self.players if p.is_good()]
         choice = goods[choice_goods_idx]
 
-        self.winner = choice.role == ROLE.MERLIN
+        self.winner = not choice.role == ROLE.MERLIN
 
     def update_after_mission(self) -> bool:
         """
