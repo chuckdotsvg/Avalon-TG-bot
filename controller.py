@@ -144,7 +144,7 @@ async def handle_leave_game(update: Update):
                     f"{user.mention_html()} has left the game!\n"
                     f" Players waiting: {', '.join(str(p) for p in game.players if p.is_online)}\n"
                 )
-                if old_name != str(game.creator):
+                if old_name == str(game.creator):
                     text += (
                         "The game creator has left!\n"
                         f"{game.creator.mention()} is the new creator.\n"
