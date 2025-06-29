@@ -19,7 +19,8 @@ class Game:
         self.missions: list[bool | None] = [None, None, None, None, None]
         self.winner: bool | None = None
         self.rejection_count: int = 0
-        self.votes: list[bool] = []
+        # self.votes: list[bool] = []
+        self.votes: dict[Player, bool] = {}
         self.creator: Player = creator
         self._players: list[Player] = [creator]
         self.team: list[Player] = []
@@ -91,7 +92,7 @@ class Game:
         :return: True if the mission was successful, False otherwise.
         """
         # if player count is 7 or more, good win if there are 2 or less false votes on the 4th mission
-        result = self.votes.count(False) <= (
+        result = list(self.votes.values()).count(False) <= (
             self.turn + 1 == 4 and len(self.players) >= 7
         )  # consider indexing from 0
 
@@ -112,7 +113,8 @@ class Game:
         :return: True if the team was approved, False otherwise.
         """
 
-        result = self.votes.count(True) >= len(self.votes) / 2
+        # result = self.votes.count(True) >= len(self.votes) / 2
+        result = list(self.votes.values()).count(True) >= len(self.votes) / 2
         self.__setup_new_election(result)
 
         # if rejected 3 times, the game is over
@@ -120,14 +122,15 @@ class Game:
 
         return result
 
-    def add_player_vote(self, vote: bool) -> bool:
+    def add_player_vote(self, player: Player, vote: bool) -> bool:
         """
         Adds a player's vote to the game.
         :param vote: Boolean value indicating the player's vote.
         :return: True if the everyone has voted, False otherwise.
         """
         # list of votes is empty at the beginning of the voting phase
-        self.votes.append(vote)
+        # self.votes.append(vote)
+        self.votes[player] = vote
 
         required_votes = len(self.team if self.phase == PHASE.QUEST else self.players)
 

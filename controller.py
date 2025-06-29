@@ -1,3 +1,4 @@
+from itertools import zip_longest
 import json
 
 from telegram import (
@@ -5,7 +6,6 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
-    PollAnswer,
     Update,
 )
 from telegram.constants import PollType as POLLTYPE
@@ -37,12 +37,12 @@ async def handle_create_game(update: Update) -> None:
             Player(update.effective_user.id, update.effective_user.full_name), group_id
         )
 
-        await update.message.reply_text(
+        _ = await update.message.reply_text(
             "Game created! You are alone now... wait for some friends.\n",
             # reply_markup=telegram.ReplyKeyboardRemove(),
         )
     else:
-        await update.message.reply_text(
+        _ = await update.message.reply_text(
             "There is already a game in this group. Please finish it before creating a new one."
         )
 
@@ -59,7 +59,7 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # check if there is a game in the group
     if (group_id := update.message.chat_id) not in existingGames.keys():
-        await update.message.reply_text(
+        _ = await update.message.reply_text(
             "There is no game in this group. Please create one first."
         )
         return
@@ -74,13 +74,13 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if p is not None:
         if p.is_online:  # player is already in the game
-            await update.message.reply_text("You are already in the game")
+            _ = await update.message.reply_text("You are already in the game")
         elif not game.is_ongoing():  # player is in the game, but not online
             game.player_join(p)
 
             if game.is_ongoing():
                 # notify the group if everyone is online
-                await update.message.reply_text(
+                _ = await update.message.reply_text(
                     "Everyone is online again, the game can continue!"
                 )
     else:
@@ -88,7 +88,7 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
         p = Player(user.id, user.full_name)
         if game.phase != PHASE.LOBBY:
             # game already started, cannot join
-            await update.message.reply_text(
+            _ = await update.message.reply_text(
                 "The game has already started. You cannot join now."
             )
         else:
@@ -99,7 +99,7 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Remember to start this bot in private chat\n"
                 f"Players waiting: {', '.join(str(p) for p in game.players)}"
             )
-            await update.message.reply_html(text)
+            _ = await update.message.reply_html(text)
 
             if len(game.players) == 10:
                 await _routine_start_game(context, game)
@@ -124,7 +124,7 @@ async def handle_leave_game(update: Update):
             return
 
         if (player := game.lookup_player(user.id)) is None:
-            await update.message.reply_text(
+            _ = await update.message.reply_text(
                 "You are not in the game. Please join first."
             )
         else:
@@ -150,10 +150,10 @@ async def handle_leave_game(update: Update):
                         f"{game.creator.mention()} is the new creator.\n"
                     )
 
-            await update.message.reply_html(text)
+            _ = await update.message.reply_html(text)
 
     else:
-        await update.message.reply_text(
+        _ = await update.message.reply_text(
             "There is no game in this group. Please create one first."
         )
 
@@ -171,7 +171,7 @@ async def handle_start_game(
 
     # check if there is a game in the group
     if (group_id := update.message.chat_id) not in existingGames.keys():
-        await update.message.reply_text(
+        _ = await update.message.reply_text(
             "There is no game in this group. Please create one first."
         )
         return
@@ -180,18 +180,18 @@ async def handle_start_game(
 
     # check if the requesting user is the creator
     if update.effective_user.id != game.creator.userid:
-        await update.message.reply_text("Only the creator can start the game.")
+        _ = await update.message.reply_text("Only the creator can start the game.")
         return
 
     # check if there are enough players
     if len(game.players) < 5:
-        await update.message.reply_text(
+        _ = await update.message.reply_text(
             "Not enough players to start the game. Minimum 5 players required."
         )
         return
 
     if game.is_ongoing():
-        await update.message.reply_text("The game is already ongoing.")
+        _ = await update.message.reply_text("The game is already ongoing.")
     else:
         # this effectively starts the game
         await _routine_start_game(context, game)
@@ -212,15 +212,15 @@ async def handle_delete_game(update: Update):
 
         # check if the requesting user is the creator
         if update.effective_user.id != game.creator.userid:
-            await update.message.reply_text("Only the creator can delete the game.")
+            _ = await update.message.reply_text("Only the creator can delete the game.")
             return
 
         # remove the game from the existing games
         del existingGames[group_id]
 
-        await update.message.reply_text("The game has been deleted.")
+        _ = await update.message.reply_text("The game has been deleted.")
     else:
-        await update.message.reply_text("There is no game in this group.")
+        _ = await update.message.reply_text("There is no game in this group.")
 
 
 async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
@@ -247,7 +247,7 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
         if player.role == ROLE.MERLIN:
             text += f"Evil team is composed of: {', '.join(str(p) for p in evils)}.\n"
 
-        await context.bot.send_message(
+        _ = await context.bot.send_message(
             chat_id=player.userid,
             text=text,
         )
@@ -266,13 +266,13 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
         "Wait for leader's team porposal"
     )
 
-    await context.bot.send_message(
+    _ = await context.bot.send_message(
         chat_id=game.id,
         text=text,
         parse_mode="HTML",
     )
 
-    await _send_people_vote_poll(
+    _ = await _send_people_vote_poll(
         context,
         game.id,
         game.players[game.leader_idx].userid,
@@ -348,13 +348,13 @@ async def handle_build_team_answer(
 
     # TODO: replace message with warning
     if (voted_team_size := len(answer_team)) != game.team_sizes[game.turn]:
-        await context.bot.send_message(
+        _ = await context.bot.send_message(
             chat_id=leader_userid,
             text=f"You have selected {voted_team_size} players, but you need to select {game.team_sizes[game.turn]} players.",
         )
     else:
         # stop the poll if the team size is correct
-        await context.bot.stop_poll(
+        _ = await context.bot.stop_poll(
             chat_id=leader_userid,
             message_id=message_id,
             reply_markup=None,
@@ -364,20 +364,13 @@ async def handle_build_team_answer(
         game.create_team([game.players[i] for i in answer_team])
 
         # close poll and update game state
-        await context.bot.send_message(
-            chat_id=leader_userid,
+        _ = await context.bot.send_message(
             text="Let's see if the others approve the team... go back to the game.",
+            chat_id=leader_userid,
         )
 
-        # send the result to the group chat
-        # await context.bot.send_message(
-        #     chat_id=game.id,
-        #     text=f"The voted team is: {', '.join(_mention_html(p) for p in game.team)}.",
-        #     parse_mode="HTML",
-        # )
-
         # forward the poll to the group chat
-        await context.bot.forward_message(
+        _ = await context.bot.forward_message(
             chat_id=game.id,
             from_chat_id=leader_userid,
             message_id=message_id,
@@ -393,73 +386,17 @@ async def _routine_pre_team_approval_phase(
     """
     Routine to prepare the voting phase of the team approval (i.e. sending the poll to all players).
     """
-    # notify players in the group about the voting phase
-    await context.bot.send_message(
-        chat_id=game.id,
-        text="Go to private chat to vote if the team is good or not.",
-    )
 
-    question = (
-        f"{game.players[game.leader_idx]} has proposed the following team:\n"
-        f"{', '.join(str(p) for p in game.team)}.\n"
-        "Do you approve this team?"
-    )
-
-    await _send_pvt_decision_message(question, game.players, context, game)
-    # await _send_people_vote_poll(
-    #     context, game.id, game.id, ["yes", "no"], question, POLLTYPE.REGULAR, None
-    # )
+    await _send_public_decision_message("Do you approve the team?", context, game)
 
 
-# async def handle_team_approval_answer(
-#     answer_team: tuple[int, ...],
-#     message_id: int,
-#     context: ContextTypes.DEFAULT_TYPE,
-#     game: Game,
-# ) -> None:
-#     """Handle the answer to the team approval poll."""
-#
-#     # TODO: replace message with warning
-#     if (voted_team_size := len(answer_team)) != game.team_sizes[game.turn]:
-#         await context.bot.send_message(
-#             chat_id=leader_userid,
-#             text=f"You have selected {voted_team_size} players, but you need to select {game.team_sizes[game.turn]} players.",
-#         )
-#     else:
-#         # stop the poll if the team size is correct
-#         await context.bot.stop_poll(
-#             chat_id=leader_userid,
-#             message_id=message_id,
-#             reply_markup=None,
-#         )
-#
-#         # player order in poll has the same order as in game.players, so indexing is safe
-#         game.create_team([game.players[i] for i in answer_team])
-#
-#         # close poll and update game state
-#         await context.bot.send_message(
-#             chat_id=leader_userid,
-#             text="Let's see if the others approve the team... go back to the game.",
-#         )
-#
-#         # send the result to the group chat
-#         await context.bot.send_message(
-#             chat_id=game.id,
-#             text=f"The voted team is: {', '.join(p.tg_name for p in game.team)}.",
-#         )
-#
-#         # go to the team approval phase
-#         await _routine_pre_team_approval_phase(context, game)
-
-
-async def _send_pvt_decision_message(
+async def _send_public_decision_message(
     decision_txt: str,
-    recipients: list[Player],
     context: ContextTypes.DEFAULT_TYPE,
     game: Game,
 ) -> None:
     """
-    Send a private message to each player to decide if they want to approve the team.
+    Send a public decision message to the group chat with inline buttons for approval or rejection.
     """
 
     keyboard = [
@@ -473,12 +410,11 @@ async def _send_pvt_decision_message(
         ]
     ]
 
-    for player in recipients:
-        await context.bot.send_message(
-            chat_id=player.userid,
-            text=decision_txt,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
+    _ = await context.bot.send_message(
+        chat_id=game.id,
+        text=decision_txt,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
 
 
 async def _routine_pre_mission_phase(context: ContextTypes.DEFAULT_TYPE, game: Game):
@@ -486,7 +422,7 @@ async def _routine_pre_mission_phase(context: ContextTypes.DEFAULT_TYPE, game: G
     Routine to prepare the mission phase of the game.
     """
     # notify players in the group about the mission phase
-    await context.bot.send_message(
+    _ = await context.bot.send_message(
         chat_id=game.id,
         text="The team has been approved! Team, go vote for the success of the mission.",
     )
@@ -496,7 +432,7 @@ async def _routine_pre_mission_phase(context: ContextTypes.DEFAULT_TYPE, game: G
         f"Missions so far: {_bool_to_emoji([x for x in game.missions if x is not None])}.\n"
     )
 
-    await _send_pvt_decision_message(question, game.team, context, game)
+    await _send_public_decision_message(question, context, game)
 
 
 async def button_vote_handler(
@@ -511,17 +447,35 @@ async def button_vote_handler(
     if not (game := existingGames.get(data.get("gid"))):
         return
 
+    if not (player := game.lookup_player(query.from_user.id)):
+        _ = await query.answer(
+            text="You are not in the game.",
+            show_alert=True,
+        )
+        return
+
     is_voting_ended = game.add_player_vote(
         # query.data is a string, so we need to convert it to a boolean
+        player,
         vote == "yes",
     )
 
-    # reply to the user
-    await query.edit_message_text(
-        text=f"Your vote has been recorded: {vote}, you can go back to the game.",
-        # remove the inline keyboard
-        reply_markup=None,
-    )
+    kwarg = {}
+
+    if is_voting_ended:
+        kwarg["reply_markup"] = None
+        query.delete_message()
+    else:
+        text = (
+            "Do you approve the team?\n"
+            f"People missing: {', '.join(str(p) for p in game.players if p not in game.votes.keys())}.\n"
+        )
+
+        _ = await query.edit_message_text(
+            text,
+            # remove the inline keyboard if the voting is ended
+            **kwarg,
+        )
 
     # repeat the process until the voting is succesful
     if is_voting_ended:
@@ -546,7 +500,7 @@ async def _routine_post_team_approval_phase(
     text = (
         "The team was"
         f"{'approved' if approval_result else f'rejected (Times rejected: {game.rejection_count})'}!\n"
-        f"Votes: {_bool_to_emoji(votes)}.\n"
+        f"Votes: {_bool_to_emoji(list(votes.values()), list(votes.keys()))}.\n"
     )
 
     if 0 < game.rejection_count < MAX_TEAM_REJECTS:
@@ -556,7 +510,7 @@ async def _routine_post_team_approval_phase(
         )
 
     # send the result to the group chat
-    await context.bot.send_message(
+    _ = await context.bot.send_message(
         chat_id=game.id,
         text=text,
     )
@@ -584,11 +538,11 @@ async def _routine_post_mission_phase(
     result = game.update_after_mission()
     text = (
         f"The mission was {'successful' if result else 'failed'}!\n"
-        f"Votes: {_bool_to_emoji(votes)}.\n"
+        f"Votes: {_bool_to_emoji(list(votes.values()))}.\n"
         f"Missions results: {_bool_to_emoji([x for x in game.missions if x is not None])}.\n"
     )
     # send the result to the group chat
-    await context.bot.send_message(
+    _ = await context.bot.send_message(
         chat_id=game.id,
         text=text,
     )
@@ -601,7 +555,7 @@ async def _routine_post_mission_phase(
         await _routine_last_chance_phase(context, game)
     else:
         # good lose immediately
-        await context.bot.send_message(
+        _ = await context.bot.send_message(
             chat_id=game.id,
             text="3 mission failed!",
         )
@@ -616,7 +570,7 @@ async def _routine_last_chance_phase(
     Routine to prepare the last chance phase of the game.
     """
     # notify players in the group about the last chance phase
-    await context.bot.send_message(
+    _ = await context.bot.send_message(
         chat_id=game.id,
         text="The evil team has a last chance to win the game. Assassin, choose a player to kill! If you choose Merlin, you win the game.",
     )
@@ -627,7 +581,7 @@ async def _routine_last_chance_phase(
         [x.role for x in game.players].index(ROLE.ASSASSIN)
     ].userid
 
-    await _send_people_vote_poll(
+    _ = await _send_people_vote_poll(
         context,
         game.id,
         assassin_tg_id,
@@ -648,7 +602,7 @@ async def handle_assassin_choice(
     if not (assassin := update.effective_user):
         return
 
-    await context.bot.stop_poll(
+    _ = await context.bot.stop_poll(
         chat_id=assassin.id,
         message_id=msg_id,
         reply_markup=None,
@@ -659,17 +613,7 @@ async def handle_assassin_choice(
 
     game.update_winner_after_assassination(assassin_guess)
 
-    # text = (
-    #     f"{assassin.full_name} has chosen to assassinate {game.players[assassin_guess].tg_name}!\n"
-    #     f"The guess was {'correct' if game.winner else 'incorrect'}!\n"
-    # )
-    #
-    # await context.bot.send_message(
-    #     chat_id=game.id,
-    #     text=text,
-    # )
-
-    await assassin.forward_messages_to(
+    _ = await assassin.forward_messages_to(
         game.id,
         [msg_id],  # requires sequence of messageIDs
     )
@@ -678,7 +622,7 @@ async def handle_assassin_choice(
 
 
 async def _routine_end_game(context: ContextTypes.DEFAULT_TYPE, game: Game) -> None:
-    await context.bot.send_message(
+    _ = await context.bot.send_message(
         chat_id=game.id,
         text=f"{game.winner and 'Good' or 'Evil'} team wins the game!",
     )
@@ -687,10 +631,14 @@ async def _routine_end_game(context: ContextTypes.DEFAULT_TYPE, game: Game) -> N
     del existingGames[game.id]
 
 
-def _bool_to_emoji(votes: list[bool]) -> str:
+def _bool_to_emoji(bs: list[bool], players: list[Player] = []) -> str:
     """
     Convert a list of votes to a string representation.
     :param votes: list of boolean votes
+    :param players: list of players corresponding to the votes
     :return: string representation of the votes
     """
-    return "".join("✅" if x else "❌" for x in votes)
+    pairs = list(zip_longest(players, bs, fillvalue=None))
+
+    return "".join(f"{str(p) if p else ''} {'✅' if x else '❌'}\n" for x, p in pairs)
+    # return "".join("✅" if x else "❌" for x in votes)
