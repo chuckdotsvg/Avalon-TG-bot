@@ -65,13 +65,15 @@ class Game:
         return any(p.is_online for p in self.players)
 
     def __update_winner(self):
-        win, win_count = Counter(self.missions).most_common(1)[0]
-        self.winner = (
-            # bad win if there are 3 or more rejections too
-            self.rejection_count >= constants.MAX_TEAM_REJECTS
-            or (win and win_count > len(self.missions) / 2)
-            or None
-        )
+        temp_winner, temp_win_count = Counter(self.missions).most_common(1)[0]
+
+        if self.rejection_count >= constants.MAX_TEAM_REJECTS:
+            self.winner = False
+        elif temp_win_count < len(self.missions) / 2:
+            # if there are not enough missions, no winner can be determined
+            self.winner = None
+        else:
+            self.winner = temp_winner
 
     def update_winner_after_assassination(self, choice_goods_idx: int):
         """

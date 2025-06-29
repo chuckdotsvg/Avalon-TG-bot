@@ -245,7 +245,7 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
         text += player.role.description()  # role description
 
         if player.role == ROLE.MERLIN:
-            text += f"Evil team is composed of: {', '.join(str(p) for  p in evils)}.\n"
+            text += f"Evil team is composed of: {', '.join(str(p) for p in evils)}.\n"
 
         await context.bot.send_message(
             chat_id=player.userid,
@@ -544,7 +544,12 @@ async def _routine_post_team_approval_phase(
     approval_result = game.update_after_team_decision()
 
     text = (
-        f"The team was {'approved' if approval_result else 'rejected'}!\n"
+        "The team was"
+        f"{
+            'approved'
+            if approval_result
+            else f'rejected (Times rejected: {game.rejection_count})'
+        }!\n"
         f"Votes: {_bool_to_emoji(votes)}.\n"
     )
 
@@ -552,7 +557,6 @@ async def _routine_post_team_approval_phase(
         text += (
             "Vote will be repeated again.\n"
             "⚠️ If the team is rejected 3 times in a row, evils win!\n"
-            f"Remaining attempts: {MAX_TEAM_REJECTS - game.rejection_count}.\n"
         )
 
     # send the result to the group chat
@@ -585,7 +589,7 @@ async def _routine_post_mission_phase(
     text = (
         f"The mission was {'successful' if result else 'failed'}!\n"
         f"Votes: {_bool_to_emoji(votes)}.\n"
-        f"Missions so far: {_bool_to_emoji([x for x in game.missions if x is not None])}.\n"
+        f"Missions results: {_bool_to_emoji([x for x in game.missions if x is not None])}.\n"
     )
     # send the result to the group chat
     await context.bot.send_message(
