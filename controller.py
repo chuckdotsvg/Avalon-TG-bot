@@ -545,11 +545,7 @@ async def _routine_post_team_approval_phase(
 
     text = (
         "The team was"
-        f"{
-            'approved'
-            if approval_result
-            else f'rejected (Times rejected: {game.rejection_count})'
-        }!\n"
+        f"{'approved' if approval_result else f'rejected (Times rejected: {game.rejection_count})'}!\n"
         f"Votes: {_bool_to_emoji(votes)}.\n"
     )
 
