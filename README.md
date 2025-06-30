@@ -1,8 +1,10 @@
 ### Roadmap
-- [ ] tag people when they have to do something
-- [ ] show lobby on join
-- [ ] update count player that have to vote
-- [ ] send poll of team vote result (with changed message)
-- [ ] anon poll for team vote in group chat
-- [ ] quest message in group chat (can interact only team members)?
+- [x] tag people when they have to do something
+- [x] show lobby on join
+- [x] update count player that have to vote
+- [x] send poll of team vote result (with changed message)
+- [x] quest message in group chat (can interact only team members)?
+- [ ] TESTS
+- [ ] add timeout
 - [ ] more emojis!!!!!
+- [ ] add new roles

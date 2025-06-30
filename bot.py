@@ -2,7 +2,7 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from telegram import BotCommand, Update
+from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
@@ -14,13 +14,13 @@ from telegram.ext import (
 import controller
 from controller import (
     button_vote_handler,
+    handle_assassin_choice,
     handle_build_team_answer,
     handle_create_game,
+    handle_delete_game,
     handle_join_game,
     handle_leave_game,
     handle_start_game,
-    handle_assassin_choice,
-    handle_delete_game,
 )
 from gamephase import GamePhase as PHASE
 
@@ -86,12 +86,14 @@ async def button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not (query := update.callback_query):
         return
 
-    await query.answer()
+    buttons = update.message.reply_markup if update.message else None
+
+    _ = await query.answer()
 
     if not query.message or not query.message.chat:
         return
 
-    await button_vote_handler(query, context)
+    await button_vote_handler(query, buttons, context)
 
 
 async def receive_poll_answer(

@@ -1,5 +1,5 @@
-from itertools import zip_longest
 import json
+from itertools import zip_longest
 
 from telegram import (
     CallbackQuery,
@@ -130,7 +130,7 @@ async def handle_leave_game(update: Update):
         else:
             # notify the group about the new creator, in case the old one left
             # TODO: highlight the (new) creator
-            old_name = str(player)
+            old_creator_name = str(game.creator)
 
             # if there are no players left, remove the Game
             if not game.player_leave(player):
@@ -144,7 +144,7 @@ async def handle_leave_game(update: Update):
                     f"{user.mention_html()} has left the game!\n"
                     f" Players waiting: {', '.join(str(p) for p in game.players if p.is_online)}\n"
                 )
-                if old_name == str(game.creator):
+                if old_creator_name != str(game.creator):
                     text += (
                         "The game creator has left!\n"
                         f"{game.creator.mention()} is the new creator.\n"
@@ -436,7 +436,9 @@ async def _routine_pre_mission_phase(context: ContextTypes.DEFAULT_TYPE, game: G
 
 
 async def button_vote_handler(
-    query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE
+    query: CallbackQuery,
+    buttons: InlineKeyboardMarkup | None,
+    context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
     if not query.data:
         return
@@ -444,15 +446,22 @@ async def button_vote_handler(
     data = json.loads(query.data)
     vote = data.get("vote")
 
-    if not (game := existingGames.get(data.get("gid"))):
-        return
+    # assume the vote is valid, if not, we will change it later
+    is_valid = True
+    text = "Vote received!"
 
-    if not (player := game.lookup_player(query.from_user.id)):
+    if not (game := existingGames.get(data.get("gid"))):
         _ = await query.answer(
-            text="You are not in the game.",
+            text="Game not found. Please try again later.",
             show_alert=True,
         )
         return
+
+    player = game.lookup_player(query.from_user.id)
+
+    if game.phase == PHASE.QUEST and player not in game.team:
+        is_valid = False
+        text = "You are not in the team, you cannot vote."
 
     is_voting_ended = game.add_player_vote(
         # query.data is a string, so we need to convert it to a boolean
@@ -460,11 +469,10 @@ async def button_vote_handler(
         vote == "yes",
     )
 
-    kwarg = {}
+    _ = await query.answer(text=text, show_alert=not is_valid)
 
     if is_voting_ended:
-        kwarg["reply_markup"] = None
-        query.delete_message()
+        _ = query.delete_message()
     else:
         text = (
             "Do you approve the team?\n"
@@ -474,7 +482,7 @@ async def button_vote_handler(
         _ = await query.edit_message_text(
             text,
             # remove the inline keyboard if the voting is ended
-            **kwarg,
+            reply_markup=buttons,
         )
 
     # repeat the process until the voting is succesful
@@ -631,13 +639,16 @@ async def _routine_end_game(context: ContextTypes.DEFAULT_TYPE, game: Game) -> N
     del existingGames[game.id]
 
 
-def _bool_to_emoji(bs: list[bool], players: list[Player] = []) -> str:
+def _bool_to_emoji(bs: list[bool], players: list[Player] | None = None) -> str:
     """
     Convert a list of votes to a string representation.
     :param votes: list of boolean votes
     :param players: list of players corresponding to the votes
     :return: string representation of the votes
     """
+    if not players:
+        players = []
+
     pairs = list(zip_longest(players, bs, fillvalue=None))
 
     return "".join(f"{str(p) if p else ''} {'✅' if x else '❌'}\n" for x, p in pairs)

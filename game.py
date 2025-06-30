@@ -122,17 +122,18 @@ class Game:
 
         return result
 
-    def add_player_vote(self, player: Player, vote: bool) -> bool:
+    def add_player_vote(self, player: Player | None, vote: bool) -> bool:
         """
         Adds a player's vote to the game.
         :param vote: Boolean value indicating the player's vote.
         :return: True if the everyone has voted, False otherwise.
         """
-        # list of votes is empty at the beginning of the voting phase
-        # self.votes.append(vote)
-        self.votes[player] = vote
+        voters = self.team if self.phase == PHASE.QUEST else self.players
 
-        required_votes = len(self.team if self.phase == PHASE.QUEST else self.players)
+        if player in voters:
+            self.votes[player] = vote
+
+        required_votes = len(voters)
 
         return len(self.votes) == required_votes
 
