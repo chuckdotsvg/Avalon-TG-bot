@@ -317,16 +317,6 @@ async def _send_people_vote_poll(
 
     msg = await context.bot.send_poll(**poll_kwargs)
 
-    # msg = await context.bot.send_poll(
-    #     chat_id = recipient,
-    #     question = poll_msg,
-    #     options = people_name,
-    #     is_anonymous=False,
-    #     type = poll_type,
-    #     allows_multiple_answers=True,
-    #     correct_option_id=correct_opt_id,
-    # )
-
     payload = {
         msg.poll.id: (msg.message_id, game_id),
     }
@@ -429,7 +419,7 @@ async def _routine_pre_mission_phase(context: ContextTypes.DEFAULT_TYPE, game: G
 
     question = (
         "Do you want to make the mission successful?\n"
-        f"Missions so far: {_bool_to_emoji([x for x in game.missions if x is not None])}.\n"
+        f"Missions so far: {_bool_to_emoji([x for x in game.missions if x is not None])}\n"
     )
 
     await _send_public_decision_message(question, context, game)
@@ -449,6 +439,7 @@ async def button_vote_handler(
     # assume the vote is valid, if not, we will change it later
     is_valid = True
     text = "Vote received!"
+    question = "Do you approve the team?\n"
 
     if not (game := existingGames.get(data.get("gid"))):
         _ = await query.answer(
@@ -459,7 +450,10 @@ async def button_vote_handler(
 
     player = game.lookup_player(query.from_user.id)
 
-    if game.phase == PHASE.QUEST and player not in game.team:
+    if game.phase == PHASE.QUEST:
+        question = "Do you want to make the mission successful?\n"
+
+    if player not in game.team:
         is_valid = False
         text = "You are not in the team, you cannot vote."
 
@@ -474,13 +468,10 @@ async def button_vote_handler(
     if is_voting_ended:
         _ = query.delete_message()
     else:
-        text = (
-            "Do you approve the team?\n"
-            f"People missing: {', '.join(str(p) for p in game.players if p not in game.votes.keys())}.\n"
-        )
+        question += f"People missing: {', '.join(str(p) for p in game.players if p not in game.votes.keys())}.\n"
 
         _ = await query.edit_message_text(
-            text=text,
+            text=question,
             # remove the inline keyboard if the voting is ended
             reply_markup=buttons,
         )
@@ -508,7 +499,7 @@ async def _routine_post_team_approval_phase(
     text = (
         "The team was"
         f"{'approved' if approval_result else f'rejected (Times rejected: {game.rejection_count})'}!\n"
-        f"Votes: {_bool_to_emoji(list(votes.values()), list(votes.keys()))}.\n"
+        f"Votes: {_bool_to_emoji(list(votes.values()), list(votes.keys()))}\n"
     )
 
     if 0 < game.rejection_count < MAX_TEAM_REJECTS:
@@ -546,8 +537,8 @@ async def _routine_post_mission_phase(
     result = game.update_after_mission()
     text = (
         f"The mission was {'successful' if result else 'failed'}!\n"
-        f"Votes: {_bool_to_emoji(list(votes.values()))}.\n"
-        f"Missions results: {_bool_to_emoji([x for x in game.missions if x is not None])}.\n"
+        f"Votes: {_bool_to_emoji(list(votes.values()))}\n"
+        f"Missions results: {_bool_to_emoji([x for x in game.missions if x is not None])}\n"
     )
     # send the result to the group chat
     _ = await context.bot.send_message(
@@ -649,7 +640,7 @@ def _bool_to_emoji(bs: list[bool], players: list[Player] | None = None) -> str:
     if not players:
         players = []
 
-    pairs = list(zip_longest(players, bs, fillvalue=None))
+    pairs = list(zip_longest(bs, players, fillvalue=None))
 
     return "".join(f"{str(p) if p else ''} {'✅' if x else '❌'}\n" for x, p in pairs)
     # return "".join("✅" if x else "❌" for x in votes)
