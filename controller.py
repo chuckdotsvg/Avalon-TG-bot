@@ -480,7 +480,7 @@ async def button_vote_handler(
         )
 
         _ = await query.edit_message_text(
-            text,
+            text=text,
             # remove the inline keyboard if the voting is ended
             reply_markup=buttons,
         )

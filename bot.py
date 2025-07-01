@@ -2,7 +2,7 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
@@ -86,9 +86,46 @@ async def button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not (query := update.callback_query):
         return
 
-    buttons = update.message.reply_markup if update.message else None
+    msg = update.effective_message
+
+    buttons = msg.reply_markup if msg else None
 
     await button_vote_handler(query, buttons, context)
+
+
+# async def send_button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+#     await update.message.reply_text(
+#         text="Please vote for the team using the buttons below.",
+#         reply_markup=InlineKeyboardMarkup(
+#             [
+#                 [
+#                     InlineKeyboardButton("Vote Yes", callback_data="vote_yes"),
+#                     InlineKeyboardButton("Vote No", callback_data="vote_no"),
+#                 ]
+#             ]
+#         ),
+#     )
+#
+#
+#
+#
+# async def handle_test_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+#     q = update.callback_query
+#     b = update.effective_message.reply_markup
+#
+#     """Handle test button presses."""
+#     if not q or not b:
+#         return
+#
+#     _ = await q.answer(
+#         text="votee",
+#         show_alert=False,
+#     )
+#
+#     _ = await q.edit_message_text(
+#         text="You pressed the button!",
+#         reply_markup=b,
+#     )
 
 
 async def receive_poll_answer(
