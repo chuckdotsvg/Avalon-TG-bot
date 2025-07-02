@@ -404,6 +404,7 @@ async def _send_public_decision_message(
         chat_id=game.id,
         text=f"Needs to vote: {', '.join(p.mention() for p in game.players)}\n",
         reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML",
     )
 
 
@@ -475,6 +476,7 @@ async def button_vote_handler(
             text=f"People missing: {', '.join(p.mention() for p in list_to_check)}.\n",
             # remove the inline keyboard if the voting is ended
             reply_markup=buttons,
+            parse_mode="HTML",
         )
 
     # repeat the process until the voting is succesful
