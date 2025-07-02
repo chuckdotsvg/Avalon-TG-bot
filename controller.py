@@ -656,4 +656,4 @@ def _bool_to_emoji(bs: list[bool], players: list[Player] | None = None) -> str:
 
     pairs = list(zip_longest(bs, players, fillvalue=None))
 
-    return "".join(f"{'✅' if x else '❌'} {'str(p)\n' if p else ''}" for x, p in pairs)
+    return "".join(f"{'✅' if x else '❌'}{'str(p), ' if p else ''}" for x, p in pairs)
