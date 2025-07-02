@@ -470,7 +470,7 @@ async def button_vote_handler(
     _ = await query.answer(text=alert, show_alert=not is_valid)
 
     if is_voting_ended:
-        _ = query.delete_message()
+        _ = await query.delete_message()
     else:
         _ = await query.edit_message_text(
             text=f"People missing: {', '.join(p.mention() for p in list_to_check)}.\n",

@@ -90,8 +90,7 @@ async def button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     buttons = msg.reply_markup if msg else None
 
-    if msg:
-        await button_vote_handler(query, buttons, context)
+    await button_vote_handler(query, buttons, context)
 
 
 
