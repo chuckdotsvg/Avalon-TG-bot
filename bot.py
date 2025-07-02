@@ -2,7 +2,7 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
@@ -90,7 +90,9 @@ async def button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     buttons = msg.reply_markup if msg else None
 
-    await button_vote_handler(query, buttons, context)
+    if msg:
+        await button_vote_handler(query, buttons, context)
+
 
 
 # async def send_button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

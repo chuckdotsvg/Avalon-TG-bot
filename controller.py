@@ -367,21 +367,21 @@ async def handle_build_team_answer(
         )
 
         # go to the team approval phase
-        await _routine_pre_team_approval_phase(context, game)
+        # await _routine_pre_team_approval_phase(context, game)
+        await _send_public_decision_message(context, game)
 
 
-async def _routine_pre_team_approval_phase(
-    context: ContextTypes.DEFAULT_TYPE, game: Game
-) -> None:
-    """
-    Routine to prepare the voting phase of the team approval (i.e. sending the poll to all players).
-    """
-
-    await _send_public_decision_message("Do you approve the team?", context, game)
+# async def _routine_pre_team_approval_phase(
+#     context: ContextTypes.DEFAULT_TYPE, game: Game
+# ) -> None:
+#     """
+#     Routine to prepare the voting phase of the team approval (i.e. sending the poll to all players).
+#     """
+#
+#     await _send_public_decision_message(context, game)
 
 
 async def _send_public_decision_message(
-    decision_txt: str,
     context: ContextTypes.DEFAULT_TYPE,
     game: Game,
 ) -> None:
@@ -402,7 +402,7 @@ async def _send_public_decision_message(
 
     _ = await context.bot.send_message(
         chat_id=game.id,
-        text=decision_txt,
+        text=f"Needs to vote: {', '.join(p.mention() for p in game.players)}\n",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
@@ -411,18 +411,19 @@ async def _routine_pre_mission_phase(context: ContextTypes.DEFAULT_TYPE, game: G
     """
     Routine to prepare the mission phase of the game.
     """
-    # notify players in the group about the mission phase
-    _ = await context.bot.send_message(
-        chat_id=game.id,
-        text="The team has been approved! Team, go vote for the success of the mission.",
-    )
-
-    question = (
+    text = (
+        "The team has been approved! Team, go vote for the success of the mission."
         "Do you want to make the mission successful?\n"
         f"Missions so far: {_bool_to_emoji([x for x in game.missions if x is not None])}\n"
     )
 
-    await _send_public_decision_message(question, context, game)
+    # notify players in the group about the mission phase
+    _ = await context.bot.send_message(
+        chat_id=game.id,
+        text=text,
+    )
+
+    await _send_public_decision_message(context, game)
 
 
 async def button_vote_handler(
@@ -438,8 +439,7 @@ async def button_vote_handler(
 
     # assume the vote is valid, if not, we will change it later
     is_valid = True
-    text = "Vote received!"
-    question = "Do you approve the team?\n"
+    alert = "Vote received!"
 
     if not (game := existingGames.get(data.get("gid"))):
         _ = await query.answer(
@@ -450,12 +450,15 @@ async def button_vote_handler(
 
     player = game.lookup_player(query.from_user.id)
 
-    if game.phase == PHASE.QUEST:
-        question = "Do you want to make the mission successful?\n"
+    list_to_check = [
+        p
+        for p in (game.players if game.phase == PHASE.QUEST else game.players)
+        if p not in game.votes.keys()
+    ]
 
-    if player not in game.team:
+    if player not in list_to_check:
         is_valid = False
-        text = "You are not in the team, you cannot vote."
+        alert = "Vote not allowed"
 
     is_voting_ended = game.add_player_vote(
         # query.data is a string, so we need to convert it to a boolean
@@ -463,15 +466,13 @@ async def button_vote_handler(
         vote == "yes",
     )
 
-    _ = await query.answer(text=text, show_alert=not is_valid)
+    _ = await query.answer(text=alert, show_alert=not is_valid)
 
     if is_voting_ended:
         _ = query.delete_message()
     else:
-        question += f"People missing: {', '.join(str(p) for p in game.players if p not in game.votes.keys())}.\n"
-
         _ = await query.edit_message_text(
-            text=question,
+            text=f"People missing: {', '.join(p.mention() for p in list_to_check)}.\n",
             # remove the inline keyboard if the voting is ended
             reply_markup=buttons,
         )
@@ -497,7 +498,7 @@ async def _routine_post_team_approval_phase(
     approval_result = game.update_after_team_decision()
 
     text = (
-        "The team was"
+        "The team was "
         f"{'approved' if approval_result else f'rejected (Times rejected: {game.rejection_count})'}!\n"
         f"Votes: {_bool_to_emoji(list(votes.values()), list(votes.keys()))}\n"
     )
@@ -537,7 +538,7 @@ async def _routine_post_mission_phase(
     result = game.update_after_mission()
     text = (
         f"The mission was {'successful' if result else 'failed'}!\n"
-        f"Votes: {_bool_to_emoji(list(votes.values()))}\n"
+        f"Votes:\n{_bool_to_emoji(list(votes.values()))}\n"
         f"Missions results: {_bool_to_emoji([x for x in game.missions if x is not None])}\n"
     )
     # send the result to the group chat
@@ -626,6 +627,19 @@ async def _routine_end_game(context: ContextTypes.DEFAULT_TYPE, game: Game) -> N
         text=f"{game.winner and 'Good' or 'Evil'} team wins the game!",
     )
 
+    # send the final game state to the group chat
+    final_state = (
+        f"Let's reveal the roles!\n"
+        f"Players and their roles:\n"
+        f"{', '.join(f'{p.role}: {str(p)}' for p in game.players)}\n"
+        f"Missions: {_bool_to_emoji([x for x in game.missions if x is not None])}\n"
+    )
+
+    _ = await context.bot.send_message(
+        chat_id=game.id,
+        text=final_state,
+    )
+
     # cleanup the game
     del existingGames[game.id]
 
@@ -642,5 +656,4 @@ def _bool_to_emoji(bs: list[bool], players: list[Player] | None = None) -> str:
 
     pairs = list(zip_longest(bs, players, fillvalue=None))
 
-    return "".join(f"{str(p) if p else ''} {'✅' if x else '❌'}\n" for x, p in pairs)
-    # return "".join("✅" if x else "❌" for x in votes)
+    return "".join(f"{'✅' if x else '❌'} {'str(p)\n' if p else ''}" for x, p in pairs)
