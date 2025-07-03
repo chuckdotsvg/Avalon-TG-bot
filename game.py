@@ -60,7 +60,7 @@ class Game:
                 del self.players[index]
 
                 # if the creator leaves in lobby, give the command to another player
-                if self.creator == player:
+                if self.creator == player and len(self.players) > 0:
                     self.creator = self.players[random.randrange(len(self.players))]
 
         return any(p.is_online for p in self.players)
@@ -92,9 +92,9 @@ class Game:
         :return: True if the mission was successful, False otherwise.
         """
         # if player count is 7 or more, good win if there are 2 or less false votes on the 4th mission
-        result = list(self.votes.values()).count(False) <= (
-            self.turn + 1 == 4 and len(self.players) >= 7
-        )  # consider indexing from 0
+        result = (
+            list(self.votes.values()).count(False) <= self.is_special_turn()
+        )
 
         self.missions[self.turn] = result
         self.turn += 1
@@ -243,6 +243,13 @@ class Game:
         return self.phase != PHASE.LOBBY and False not in [
             p.is_online for p in self.players
         ]
+
+    def is_special_turn(self) -> bool:
+        """
+        Checks if the fourth mission is special (i.e. admits one failure)
+        :return: True if the fourth mission is special, False otherwise.
+        """
+        return self.turn + 1 == 4 and len(self.players) >= 7
 
     @property
     def players(self):

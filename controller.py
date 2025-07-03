@@ -1,5 +1,4 @@
 import json
-from itertools import zip_longest
 
 from telegram import (
     CallbackQuery,
@@ -229,7 +228,18 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
     """
     game.start_game()
 
-    evils = [p for p in game.players if not p.is_good()]
+    evil = [p for p in game.players if not p.is_good()]
+
+    info_txt = (
+        f"Game started with {len(game.players)} players.\n"
+        f"Number of evil players: {len(evil)}\n"
+        f"Number of good players: {len(game.players) - len(evil)}\n"
+    )
+
+    _ = await context.bot.send_message(
+        chat_id=game.id,
+        text=info_txt,
+    )
 
     for player in game.players:
         text = f"Your role is: {player.role}.\n"  # now role can't be None
@@ -239,13 +249,13 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
         else:
             text += (
                 "You are part of the evil team. Sabotage the missions and prevent the good team from winning!\n"
-                f"Your evil teammates are: {', '.join(str(p) for p in evils if p != player)}.\n\n"
+                f"Your evil teammates are: {', '.join(str(p) for p in evil if p != player)}.\n\n"
             )
 
         text += player.role.description()  # role description
 
         if player.role == ROLE.MERLIN:
-            text += f"Evil team is composed of: {', '.join(str(p) for p in evils)}.\n"
+            text += f"Evil team is composed of: {', '.join(str(p) for p in evil)}.\n"
 
         _ = await context.bot.send_message(
             chat_id=player.userid,
@@ -265,6 +275,9 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
         f"{game.players[game.leader_idx].mention()} is the team leader for this round.\n"
         "Wait for leader's team porposal"
     )
+
+    if game.is_special_turn():
+        text += "⚠️ This is a special mission, you can make it succesful even with a negative vote!\n"
 
     _ = await context.bot.send_message(
         chat_id=game.id,
@@ -418,6 +431,9 @@ async def _routine_pre_mission_phase(context: ContextTypes.DEFAULT_TYPE, game: G
         f"Missions so far: {_bool_to_emoji([x for x in game.missions if x is not None])}\n"
     )
 
+    if game.is_special_turn():
+        text += "⚠️ This is a special mission, you can make it succesful even with a negative vote!\n"
+
     # notify players in the group about the mission phase
     _ = await context.bot.send_message(
         chat_id=game.id,
@@ -466,11 +482,18 @@ async def button_vote_handler(
             player,
             vote == "yes",
         )
+        # remove the player from the list to check
+        list_to_check.remove(player)
 
     _ = await query.answer(text=alert, show_alert=not is_valid)
 
+    # repeat the process until the voting is succesful
     if is_voting_ended:
         _ = await query.delete_message()
+        if game.phase == PHASE.BUILD_TEAM:
+            await _routine_post_team_approval_phase(context, game)
+        elif game.phase == PHASE.QUEST:
+            await _routine_post_mission_phase(context, game)
     elif is_valid:
         _ = await query.edit_message_text(
             text=f"People missing: {', '.join(p.mention() for p in list_to_check)}.\n",
@@ -478,13 +501,6 @@ async def button_vote_handler(
             reply_markup=buttons,
             parse_mode="HTML",
         )
-
-    # repeat the process until the voting is succesful
-    if is_voting_ended:
-        if game.phase == PHASE.BUILD_TEAM:
-            await _routine_post_team_approval_phase(context, game)
-        elif game.phase == PHASE.QUEST:
-            await _routine_post_mission_phase(context, game)
 
 
 async def _routine_post_team_approval_phase(
@@ -502,7 +518,7 @@ async def _routine_post_team_approval_phase(
     text = (
         "The team was "
         f"{'approved' if approval_result else f'rejected (Times rejected: {game.rejection_count})'}!\n"
-        f"Votes: {_bool_to_emoji(list(votes.values()), list(votes.keys()))}\n"
+        f"Votes:\n{_bool_to_emoji(list(votes.values()), list(votes.keys()))}\n"
     )
 
     if 0 < game.rejection_count < MAX_TEAM_REJECTS:
@@ -540,7 +556,7 @@ async def _routine_post_mission_phase(
     result = game.update_after_mission()
     text = (
         f"The mission was {'successful' if result else 'failed'}!\n"
-        f"Votes:\n{_bool_to_emoji(list(votes.values()))}\n"
+        f"Votes: {_bool_to_emoji(list(votes.values()))}\n"
         f"Missions results: {_bool_to_emoji([x for x in game.missions if x is not None])}\n"
     )
     # send the result to the group chat
@@ -632,8 +648,10 @@ async def _routine_end_game(context: ContextTypes.DEFAULT_TYPE, game: Game) -> N
     # send the final game state to the group chat
     final_state = (
         f"Let's reveal the roles!\n"
-        f"Players and their roles:\n"
-        f"{', '.join(f'{p.role}: {str(p)}' for p in game.players)}\n"
+        "Evil team:\n"
+        f"{'\n'.join(f'{p.role}: {str(p)}' for p in game.players if not p.is_good())}\n\n"
+        "Good team:\n"
+        f"{'\n'.join(f'{p.role}: {str(p)}' for p in game.players if p.is_good())}\n\n"
         f"Missions: {_bool_to_emoji([x for x in game.missions if x is not None])}\n"
     )
 
@@ -654,10 +672,12 @@ def _bool_to_emoji(bs: list[bool], players: list[Player] | None = None) -> str:
     :return: string representation of the votes
     """
     if not players:
-        players = []
+        ps = list("" * len(bs))
+        div = ""
+    else:
+        ps = [str(p) for p in players]
+        div = "\n"
 
-    pairs = list(zip_longest(bs, players, fillvalue=None))
+    pairs = list(zip(bs, ps))
 
-    return "".join(
-        f"{'✅' if x else '❌'}{f'{str(p)}, ' if p else ''}" for x, p in pairs
-    )
+    return div.join(f"{'✅' if x else '❌'}{p}" for x, p in pairs)
