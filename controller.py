@@ -439,7 +439,6 @@ async def button_vote_handler(
     vote = data.get("vote")
 
     # assume the vote is valid, if not, we will change it later
-    is_valid = True
     alert = "Vote received!"
 
     if not (game := existingGames.get(data.get("gid"))):
@@ -453,25 +452,26 @@ async def button_vote_handler(
 
     list_to_check = [
         p
-        for p in (game.players if game.phase == PHASE.QUEST else game.players)
+        for p in (game.team if game.phase == PHASE.QUEST else game.players)
         if p not in game.votes.keys()
     ]
 
     if player not in list_to_check:
-        is_valid = False
+        is_valid = is_voting_ended = False
         alert = "Vote not allowed"
-
-    is_voting_ended = game.add_player_vote(
-        # query.data is a string, so we need to convert it to a boolean
-        player,
-        vote == "yes",
-    )
+    else:
+        is_valid = True
+        is_voting_ended = game.add_player_vote(
+            # query.data is a string, so we need to convert it to a boolean
+            player,
+            vote == "yes",
+        )
 
     _ = await query.answer(text=alert, show_alert=not is_valid)
 
     if is_voting_ended:
         _ = await query.delete_message()
-    else:
+    elif is_valid:
         _ = await query.edit_message_text(
             text=f"People missing: {', '.join(p.mention() for p in list_to_check)}.\n",
             # remove the inline keyboard if the voting is ended
@@ -508,7 +508,7 @@ async def _routine_post_team_approval_phase(
     if 0 < game.rejection_count < MAX_TEAM_REJECTS:
         text += (
             "Vote will be repeated again.\n"
-            "⚠️ If the team is rejected 3 times in a row, evils win!\n"
+            "⚠️ If the team is rejected 3 times in a row, evil wins!\n"
         )
 
     # send the result to the group chat
@@ -658,4 +658,6 @@ def _bool_to_emoji(bs: list[bool], players: list[Player] | None = None) -> str:
 
     pairs = list(zip_longest(bs, players, fillvalue=None))
 
-    return "".join(f"{'✅' if x else '❌'}{'str(p), ' if p else ''}" for x, p in pairs)
+    return "".join(
+        f"{'✅' if x else '❌'}{f'{str(p)}, ' if p else ''}" for x, p in pairs
+    )
