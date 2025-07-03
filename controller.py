@@ -381,7 +381,7 @@ async def handle_build_team_answer(
 
         # go to the team approval phase
         # await _routine_pre_team_approval_phase(context, game)
-        await _send_public_decision_message(context, game)
+        await _send_public_decision_message(game.players, context, game)
 
 
 # async def _routine_pre_team_approval_phase(
@@ -395,6 +395,7 @@ async def handle_build_team_answer(
 
 
 async def _send_public_decision_message(
+    people: list[Player],
     context: ContextTypes.DEFAULT_TYPE,
     game: Game,
 ) -> None:
@@ -426,7 +427,7 @@ async def _routine_pre_mission_phase(context: ContextTypes.DEFAULT_TYPE, game: G
     Routine to prepare the mission phase of the game.
     """
     text = (
-        "The team has been approved! Team, go vote for the success of the mission."
+        "The team has been approved! Team, go vote for the success of the mission.\n"
         "Do you want to make the mission successful?\n"
         f"Missions so far: {_bool_to_emoji([x for x in game.missions if x is not None])}\n"
     )
@@ -440,7 +441,7 @@ async def _routine_pre_mission_phase(context: ContextTypes.DEFAULT_TYPE, game: G
         text=text,
     )
 
-    await _send_public_decision_message(context, game)
+    await _send_public_decision_message(game.team, context, game)
 
 
 async def button_vote_handler(
@@ -672,11 +673,11 @@ def _bool_to_emoji(bs: list[bool], players: list[Player] | None = None) -> str:
     :return: string representation of the votes
     """
     if not players:
-        ps = list("" * len(bs))
         div = ""
+        ps = ["" for _ in bs]
     else:
-        ps = [str(p) for p in players]
         div = "\n"
+        ps = [str(p) for p in players]
 
     pairs = list(zip(bs, ps))
 
