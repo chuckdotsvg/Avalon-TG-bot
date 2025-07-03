@@ -650,9 +650,9 @@ async def _routine_end_game(context: ContextTypes.DEFAULT_TYPE, game: Game) -> N
     final_state = (
         f"Let's reveal the roles!\n"
         "Evil team:\n"
-        f"{'\n'.join(f'{p.role}: {str(p)}' for p in game.players if not p.is_good())}\n\n"
+        f"{', '.join(f'{p.role}: {str(p)}' for p in game.players if not p.is_good())}\n\n"
         "Good team:\n"
-        f"{'\n'.join(f'{p.role}: {str(p)}' for p in game.players if p.is_good())}\n\n"
+        f"{', '.join(f'{p.role}: {str(p)}' for p in game.players if p.is_good())}\n\n"
         f"Missions: {_bool_to_emoji([x for x in game.missions if x is not None])}\n"
     )
 
