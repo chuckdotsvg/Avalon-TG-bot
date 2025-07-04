@@ -114,7 +114,7 @@ class Game:
         """
 
         # result = self.votes.count(True) >= len(self.votes) / 2
-        result = list(self.votes.values()).count(True) >= len(self.votes) / 2
+        result = list(self.votes.values()).count(True) > len(self.votes) / 2
         self.__setup_new_election(result)
 
         # if rejected 3 times, the game is over
