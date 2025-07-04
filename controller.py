@@ -234,7 +234,12 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
         f"Game started with {len(game.players)} players.\n"
         f"Number of evil players: {len(evil)}\n"
         f"Number of good players: {len(game.players) - len(evil)}\n"
+        f"Special roles: {', '.join(str(role) for role in game.special_roles)}\n"
+        f"Team sizes for turns: {', '.join(f'[{i}:{x}]' for i, x in enumerate(game.team_sizes))}\n"
     )
+
+    if len(game.players) >= 7:
+        info_txt += "Remember that fourth mission is special, you can make it successful even with a negative vote!\n"
 
     _ = await context.bot.send_message(
         chat_id=game.id,
@@ -272,8 +277,10 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
     # notify players in the group about the voting phase
     text = (
         f"Turn {game.turn + 1} has started!\n"
+        f"Next leaders will be: {', '.join(str(p) for p in game.players[game.leader_idx + 1 :] + game.players[: game.leader_idx])}\n"
+        f"Next team sizes: {', '.join(str(x) for x in game.team_sizes[game.turn:])}\n\n"
         f"{game.players[game.leader_idx].mention()} is the team leader for this round.\n"
-        "Wait for leader's team porposal"
+        "Wait for leader's team proposal.\n"
     )
 
     if game.is_special_turn():
@@ -384,16 +391,6 @@ async def handle_build_team_answer(
         await _send_public_decision_message(game.players, context, game)
 
 
-# async def _routine_pre_team_approval_phase(
-#     context: ContextTypes.DEFAULT_TYPE, game: Game
-# ) -> None:
-#     """
-#     Routine to prepare the voting phase of the team approval (i.e. sending the poll to all players).
-#     """
-#
-#     await _send_public_decision_message(context, game)
-
-
 async def _send_public_decision_message(
     people: list[Player],
     context: ContextTypes.DEFAULT_TYPE,
@@ -416,7 +413,7 @@ async def _send_public_decision_message(
 
     _ = await context.bot.send_message(
         chat_id=game.id,
-        text=f"Needs to vote: {', '.join(p.mention() for p in game.players)}\n",
+        text=f"Needs to vote: {', '.join(p.mention() for p in people)}\n",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML",
     )
