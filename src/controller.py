@@ -12,6 +12,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
+import constants
 from constants import MAX_TEAM_REJECTS
 from game import Game
 from gamephase import GamePhase as PHASE
@@ -522,7 +523,7 @@ async def _routine_post_team_approval_phase(
     if 0 < game.rejection_count < MAX_TEAM_REJECTS:
         text += (
             "Vote will be repeated again.\n"
-            "⚠️ If the team is rejected 3 times in a row, evil wins!\n"
+            f"⚠️ If the team is rejected {MAX_TEAM_REJECTS} times in a row, evil wins!\n"
         )
 
     # send the result to the group chat
