@@ -61,13 +61,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message with the rules of the game."""
-    path = pathlib.Path(__file__).parent.parent / "resources/rules.md"
+    path = pathlib.Path(__file__).parent.parent.parent / "resources/rules.html"
     if not path.exists():
-        text = "Rules not found."
+        text = "Rules not found"
     else:
         text = path.read_text(encoding="utf-8").strip()
 
-    await update.message.reply_markdown_v2(text) if update.message else None
+    await update.message.reply_html(text) if update.message else None
 
 
 async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
