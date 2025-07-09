@@ -1,8 +1,8 @@
 start - Start the bot
 help - Show help message
+rules - Show game rules
 create - Create a new game
 join - Join an existing game
 leave - Leave the current game
 startgame - Start the current game
-privatepoll - test
 delete - delete an existing game in current chat

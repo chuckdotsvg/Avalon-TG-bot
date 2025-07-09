@@ -9,6 +9,7 @@
 1️⃣ Each round, a leader proposes a quest team.  
 2️⃣ All players vote 🗳️ to approve/reject the team.  
    - If *5 teams in a row* are rejected ❌, evil wins immediately.  
+
 3️⃣ Approved teams go on the quest:  
    - 🏰 Good players must choose 🗡️ Success.  
    - 😈 Evil players can choose 🔥 Fail or 🗡️ Success.  

@@ -1,5 +1,6 @@
 import logging
 import os
+import pathlib
 
 from dotenv import load_dotenv
 from telegram import Update
@@ -11,8 +12,7 @@ from telegram.ext import (
     PollAnswerHandler,
 )
 
-import controller
-from controller import (
+from .controller import (
     button_vote_handler,
     handle_assassin_choice,
     handle_build_team_answer,
@@ -21,8 +21,9 @@ from controller import (
     handle_join_game,
     handle_leave_game,
     handle_start_game,
+    existingGames
 )
-from gamephase import GamePhase as PHASE
+from .gamephase import GamePhase as PHASE
 
 _ = load_dotenv()
 telegram_token = os.getenv("TELEGRAM_TOKEN", "")
@@ -34,9 +35,6 @@ logging.basicConfig(
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
-
-existingGames = controller.existingGames
-
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
@@ -59,6 +57,17 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text += "suca"
 
     await update.message.reply_text(text) if update.message else None
+
+
+async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send a message with the rules of the game."""
+    path = pathlib.Path(__file__).parent.parent / "resources/rules.md"
+    if not path.exists():
+        text = "Rules not found."
+    else:
+        text = path.read_text(encoding="utf-8").strip()
+
+    await update.message.reply_markdown_v2(text) if update.message else None
 
 
 async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -91,7 +100,6 @@ async def button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     buttons = msg.reply_markup if msg else None
 
     await button_vote_handler(query, buttons, context)
-
 
 
 # async def send_button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -217,12 +225,9 @@ def main() -> None:
     application.add_handler(CommandHandler("leave", leave_game))
     application.add_handler(CommandHandler("startgame", start_game))
     application.add_handler(CommandHandler("delete", delete_game))
+    application.add_handler(CommandHandler("rules", rules))
     # application.add_handler(CommandHandler("privatepoll", private_poll_test))
     application.add_handler(CallbackQueryHandler(button_vote))
     application.add_handler(PollAnswerHandler(receive_poll_answer))
 
     application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
-
-
-if __name__ == "__main__":
-    main()

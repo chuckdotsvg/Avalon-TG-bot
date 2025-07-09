@@ -12,12 +12,11 @@ from telegram.ext import (
     ContextTypes,
 )
 
-import constants
-from constants import MAX_TEAM_REJECTS
-from game import Game
-from gamephase import GamePhase as PHASE
-from player import Player
-from role import Role as ROLE
+from .constants import MAX_TEAM_REJECTS
+from .game import Game
+from .gamephase import GamePhase as PHASE
+from .player import Player
+from .role import Role as ROLE
 
 existingGames: dict[int, Game] = {}
 

@@ -8,3 +8,4 @@
 - [ ] add timeout
 - [ ] more emojis!!!!!
 - [ ] add new roles
+- [ ] structure abilities based on game period activation

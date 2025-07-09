@@ -1,9 +1,9 @@
 import random
-import constants
-from role import Role as ROLE
-from gamephase import GamePhase as PHASE
+from . import constants
+from .role import Role as ROLE
+from .gamephase import GamePhase as PHASE
 from collections import Counter
-from player import Player
+from .player import Player
 
 
 class Game:
@@ -19,7 +19,6 @@ class Game:
         self.missions: list[bool | None] = [None, None, None, None, None]
         self.winner: bool | None = None
         self.rejection_count: int = 0
-        # self.votes: list[bool] = []
         self.votes: dict[Player, bool] = {}
         self.creator: Player = creator
         self._players: list[Player] = [creator]
