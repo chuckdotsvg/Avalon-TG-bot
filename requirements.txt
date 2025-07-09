@@ -1,1 +1,4 @@
 pytest
+pre-commit
+dotenv
+python-telegram-bot
