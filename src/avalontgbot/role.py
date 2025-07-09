@@ -52,7 +52,7 @@ class Role(Enum):
         return (
             Path(__file__).parent.parent.parent
             / "resources/roles"
-            / f"{self.name.lower()}.md"
+            / f"{self.name.lower()}.html"
         )
 
     def __getitem__(self, index: int):
