@@ -1,5 +1,11 @@
 import random
-from . import constants
+from .constants import (
+    MAX_PLAYERS,
+    MAX_TEAM_REJECTS,
+    MIN_PLAYERS,
+    PLAYERS_TO_RULES,
+    MANDATORY_ROLES,
+)
 from .role import Role as ROLE
 from .gamephase import GamePhase as PHASE
 from collections import Counter
@@ -25,7 +31,7 @@ class Game:
         self.team: list[Player] = []
         self.leader_idx: int = -1
         self.phase: PHASE = PHASE.LOBBY
-        self.special_roles: list[ROLE] = [ROLE.MERLIN, ROLE.ASSASSIN]
+        self.special_roles: list[ROLE] = list(MANDATORY_ROLES)
         self.team_sizes: list[int]
 
     def player_join(self, player: Player):
@@ -34,14 +40,23 @@ class Game:
         :param player: Player object to be added.
         """
 
+        if len(self.players) >= MAX_PLAYERS:
+            raise ValueError("Maximum number of players reached.")
+
         if player in self.players:
             index = self.players.index(player)
             if not self.players[index].is_online:
                 # player is already in the game, but offline, so set online status to True
                 self.players[index].is_online = True
+            else:
+                raise ValueError("Player is already in the game and online.")
         else:
             # player is not in the game, so add them
             self.players.append(player)
+
+        if len(self.players) == MAX_PLAYERS and self.phase == PHASE.LOBBY:
+            # if there are enough players, start the game automatically
+            self.start_game()
 
     def player_leave(self, player: Player) -> bool:
         """
@@ -49,25 +64,43 @@ class Game:
         :param player: Player object to be removed.
         :return: True there is at least one player left/online in the game, False otherwise.
         """
-        if player in self.players:
-            index = self.players.index(player)
-            if self.is_ongoing():
-                # if the game is ongoing, set the player as offline
-                self.players[index].is_online = False
-            else:
-                # if the game is in lobby, remove the player from the game
-                del self.players[index]
+        if player not in self.players:
+            raise ValueError("Player not in game.")
 
-                # if the creator leaves in lobby, give the command to another player
-                if self.creator == player and len(self.players) > 0:
-                    self.creator = self.players[random.randrange(len(self.players))]
+        index = self.players.index(player)
+        if self.is_ongoing:
+            # if the game is ongoing, set the player as offline
+            self.players[index].is_online = False
+        else:
+            # if the game is in lobby, remove the player from the game
+            del self.players[index]
+
+            # if the creator leaves in lobby, give the command to another player
+            if self.creator == player and len(self.players) > 0:
+                self.creator = self.players[random.randrange(len(self.players))]
 
         return any(p.is_online for p in self.players)
+
+    def pass_creator(self, player: Player):
+        """
+        Passes the creator role to another player.
+        :param player: Player object to whom the creator role is passed.
+        """
+        if player not in self.players:
+            raise ValueError("Player not in game.")
+        elif player == self.creator:
+            raise ValueError("You are already the creator of the game!")
+
+        self.creator = player
+
+        # if the creator is passed, reset the votes and rejection count
+        self.votes.clear()
+        self.rejection_count = 0
 
     def __update_winner(self):
         temp_winner, temp_win_count = Counter(self.missions).most_common(1)[0]
 
-        if self.rejection_count >= constants.MAX_TEAM_REJECTS:
+        if self.rejection_count >= MAX_TEAM_REJECTS:
             self.winner = False
         elif temp_win_count < len(self.missions) / 2:
             # if there are not enough missions, no winner can be determined
@@ -91,9 +124,7 @@ class Game:
         :return: True if the mission was successful, False otherwise.
         """
         # if player count is 7 or more, good win if there are 2 or less false votes on the 4th mission
-        result = (
-            list(self.votes.values()).count(False) <= self.is_special_turn()
-        )
+        result = list(self.votes.values()).count(False) <= self.is_special_turn()
 
         self.missions[self.turn] = result
         self.turn += 1
@@ -112,7 +143,6 @@ class Game:
         :return: True if the team was approved, False otherwise.
         """
 
-        # result = self.votes.count(True) >= len(self.votes) / 2
         result = list(self.votes.values()).count(True) > len(self.votes) / 2
         self.__setup_new_election(result)
 
@@ -129,12 +159,53 @@ class Game:
         """
         voters = self.team if self.phase == PHASE.QUEST else self.players
 
-        if player in voters:
-            self.votes[player] = vote
+        if player not in voters:
+            raise ValueError("Player not allowed to vote.")
+
+        self.votes[player] = vote
 
         required_votes = len(voters)
 
         return len(self.votes) == required_votes
+
+    def are_enough_players(self) -> bool:
+        """
+        Checks if there are enough players to start the game with the
+        current list of special roles.
+        :return: True if there are enough players, False otherwise.
+        """
+        num_players = len(self.players)
+        num_special = len(self.special_roles)
+        num_good = len([r for r in self.special_roles if r.is_good])
+        num_bad = num_special - num_good
+
+        return (
+            (num_players >= self.__required_players)
+            and (num_players <= MAX_PLAYERS)
+            and (num_good <= PLAYERS_TO_RULES[num_players]["num_goods"])
+            and (num_bad <= num_players - PLAYERS_TO_RULES[num_players]["num_goods"])
+        )
+
+    @property
+    def __required_players(self) -> int:
+        """
+        Returns the minimum number of players required for the game based on the special roles.
+        :return: Minimum number of players required.
+        """
+        return max(MIN_PLAYERS, len(self.special_roles))
+
+    def set_special_roles(self, roles: list[ROLE]):
+        """
+        Sets the special roles for the game.
+        :param roles: List of ROLE objects representing the special roles.
+        """
+        if self.phase != PHASE.LOBBY:
+            raise ValueError("Cannot set special roles after the game has started.")
+
+        set_roles = set(roles)
+        set_roles.update(MANDATORY_ROLES)
+
+        self.special_roles = list(set_roles)
 
     def lookup_player(self, id: int) -> Player | None:
         """
@@ -170,15 +241,16 @@ class Game:
         """
         num_players = len(self.players)
 
-        self.team_sizes = constants.playersToRules[num_players][0]
-
-        random.shuffle(self.players)
+        self.team_sizes = PLAYERS_TO_RULES[num_players]["team_sizes"]
 
         # assign roles
         self.__set_roles()
 
+        random.shuffle(self.players)
+
         self.leader_idx = random.randrange(num_players)
 
+        self.turn += 1
         # finally change the phase to TEAM_BUILD
         self.__change_phase()
 
@@ -188,7 +260,17 @@ class Game:
         """
         num_players = len(self.players)
         num_special = len(self.special_roles)
-        num_of_servants = constants.playersToRules[num_players][1] - [
+        num_good = PLAYERS_TO_RULES[num_players]["num_goods"]
+
+        if not self.are_enough_players():
+            text = (
+                "Not enough players for the given special roles.\n"
+                f"With {num_players}, include maximum {num_good} good roles"
+                f"and {num_players - num_good} evil roles.\n"
+            )
+            raise ValueError(text)
+
+        num_of_servants = num_good - [
             x[1] for x in self.special_roles
         ].count(True)
         num_of_minions = num_players - num_of_servants - num_special
@@ -232,8 +314,14 @@ class Game:
         Creates a team for the current mission.
         :param team: List of Player objects representing the team members.
         """
+        if len(team) != self.team_sizes[self.turn]:
+            raise ValueError(
+                f"Team size must be {self.team_sizes[self.turn]} for this mission."
+            )
+
         self.team = team
 
+    @property
     def is_ongoing(self) -> bool:
         """
         Checks if the game is currently ongoing.
@@ -250,13 +338,32 @@ class Game:
         """
         return self.turn + 1 == 4 and len(self.players) >= 7
 
+    def evil_list(self, real: bool = True) -> list[Player]:
+        """
+        Returns a list of players with evil roles.
+        :param real: If True, returns players with actual evil roles, including e.g. Mordred
+        :return: List of Player objects with evil roles.
+        """
+        return [
+            p
+            for p in self.players
+            if not p.is_good() and (not real or p.role != ROLE.MORDRED)
+        ]
+
+    # def username_to_id(self, username: str) -> int:
+    #     """
+    #     Converts a username to a user ID.
+    #     :param username: The username to convert.
+    #     :return: The user ID as an integer.
+    #     """
+
     @property
     def players(self):
         """The players property."""
         return self._players
 
     @players.setter
-    def players(self, value):
+    def players(self, value: list[Player]):
         self._players = value
 
     @property
@@ -265,5 +372,5 @@ class Game:
         return self._id
 
     @id.setter
-    def id(self, value):
+    def id(self, value: int):
         self._id = value

@@ -12,7 +12,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-from .constants import MAX_TEAM_REJECTS
+from .constants import MANDATORY_ROLES, MAX_TEAM_REJECTS
 from .game import Game
 from .gamephase import GamePhase as PHASE
 from .player import Player
@@ -74,10 +74,10 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if p is not None:
         if p.is_online:  # player is already in the game
             _ = await update.message.reply_text("You are already in the game")
-        elif not game.is_ongoing():  # player is in the game, but not online
+        elif not game.is_ongoing:  # player is in the game, but not online
             game.player_join(p)
 
-            if game.is_ongoing():
+            if game.is_ongoing:
                 # notify the group if everyone is online
                 _ = await update.message.reply_text(
                     "Everyone is online again, the game can continue!"
@@ -104,6 +104,35 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await _routine_start_game(context, game)
 
     return
+
+
+async def handle_set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle the setting of roles for the players in the game.
+    """
+    group_id = update.message.chat_id
+
+    game = existingGames[group_id]
+
+    # check if the requesting user is the creator
+    if update.effective_user.id != game.creator.userid:
+        _ = await update.message.reply_text("Only the creator can set roles.")
+        return
+
+    special_roles_str = list(
+        str(x) for x in ROLE if x.is_special and x not in MANDATORY_ROLES
+    )
+
+    # set roles for the players
+    _ = await _send_selection_poll(
+        context,
+        game.id,
+        game.creator.userid,
+        special_roles_str,
+        "Select special roles",
+        POLLTYPE.REGULAR,
+        None,
+    )
 
 
 async def handle_leave_game(update: Update):
@@ -157,6 +186,37 @@ async def handle_leave_game(update: Update):
         )
 
 
+async def handle_pass_creator(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle the passing of the game creator role to another player.
+    """
+    if not update.message or not update.effective_user:
+        return
+
+    group_id = update.message.chat_id
+
+    # check if there is a game in the group
+    if group_id not in existingGames.keys():
+        _ = await update.message.reply_text(
+            "There is no game in this group. Please create one first."
+        )
+        return
+
+    game = existingGames[group_id]
+
+    # check if the requesting user is the creator
+    if update.effective_user.id != game.creator.userid:
+        _ = await update.message.reply_text("Only the creator can pass the role.")
+        return
+
+    # pass the creator role to the next player
+    new_creator = game.pass_creator()
+
+    _ = await update.message.reply_text(
+        f"{new_creator.mention()} is now the creator of the game."
+    )
+
+
 async def handle_start_game(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -189,7 +249,7 @@ async def handle_start_game(
         )
         return
 
-    if game.is_ongoing():
+    if game.is_ongoing:
         _ = await update.message.reply_text("The game is already ongoing.")
     else:
         # this effectively starts the game
@@ -228,15 +288,17 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
     """
     game.start_game()
 
-    evil = [p for p in game.players if not p.is_good()]
-
     info_txt = (
         f"Game started with {len(game.players)} players.\n"
-        f"Number of evil players: {len(evil)}\n"
-        f"Number of good players: {len(game.players) - len(evil)}\n"
-        f"Special roles: {', '.join(str(role) for role in game.special_roles)}\n"
-        f"Team sizes for turns: {', '.join(f'[{i}:{x}]' for i, x in enumerate(game.team_sizes))}\n"
+        f"Number of evil players: {len(game.evil_list())}\n"
+        f"Number of good players: {len(game.players) - len(game.evil_list())}\n"
     )
+
+    info_txt += "Special roles:\n"
+    info_txt += "\n".join(str(role) for role in game.special_roles)
+
+    info_txt += "Team sizes for turns:\n"
+    info_txt += "\n".join(f"( {i + 1}:{x} )" for i, x in enumerate(game.team_sizes))
 
     if len(game.players) >= 7:
         info_txt += "Remember that fourth mission is special, you can make it successful even with a negative vote!\n"
@@ -249,22 +311,18 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
     for player in game.players:
         text = f"Your role is: {player.role}.\n"  # now role can't be None
 
-        if player.is_good():
-            text += "You are part of the good team. Complete 3 successful missions to win the game!\n\n"
-        else:
-            text += (
-                "You are part of the evil team. Sabotage the missions and prevent the good team from winning!\n"
-                f"Your evil teammates are: {', '.join(str(p) for p in evil if p != player)}.\n\n"
-            )
-
         text += player.role.description()  # role description
 
+        if not player.is_good():
+            text += f"Your teammates are: {', '.join(str(p) for p in game.evil_list() if p != player)}.\n"
+
         if player.role == ROLE.MERLIN:
-            text += f"Evil team is composed of: {', '.join(str(p) for p in evil)}.\n"
+            text += f"Evil team is composed of: {', '.join(str(p) for p in game.evil_list())}.\n"
 
         _ = await context.bot.send_message(
             chat_id=player.userid,
             text=text,
+            parse_mode="HTML",
         )
 
     await _routine_pre_team_building(context, game)
@@ -278,7 +336,7 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
     text = (
         f"Turn {game.turn + 1} has started!\n"
         f"Next leaders will be: {', '.join(str(p) for p in game.players[game.leader_idx + 1 :] + game.players[: game.leader_idx])}\n"
-        f"Next team sizes: {', '.join(str(x) for x in game.team_sizes[game.turn:])}\n\n"
+        f"Next team sizes: {', '.join(str(x) for x in game.team_sizes[game.turn :])}\n\n"
         f"{game.players[game.leader_idx].mention()} is the team leader for this round.\n"
         "Wait for leader's team proposal.\n"
     )
@@ -292,7 +350,7 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
         parse_mode="HTML",
     )
 
-    _ = await _send_people_vote_poll(
+    _ = await _send_selection_poll(
         context,
         game.id,
         game.players[game.leader_idx].userid,
@@ -303,17 +361,17 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
     )
 
 
-async def _send_people_vote_poll(
+async def _send_selection_poll(
     context: ContextTypes.DEFAULT_TYPE,
     game_id: int,
     recipient: int,
-    people_name: list[str],
+    opts_str: list[str],
     poll_msg: str,
     poll_type: POLLTYPE,
     correct_opt_id: int | None,
 ) -> Message:
     """
-    Send a poll to the group chat to vote for the team leader.
+    Send a poll to the recipient with the given options.
     :param context: the context of the bot
     :param game: the game object
     :param recipient: the recipient of the poll (the team leader)
@@ -326,7 +384,7 @@ async def _send_people_vote_poll(
     poll_kwargs = {
         "chat_id": recipient,
         "question": poll_msg,
-        "options": people_name,
+        "options": opts_str,
         "is_anonymous": False,
         "type": poll_type,
         "allows_multiple_answers": True,
@@ -335,14 +393,45 @@ async def _send_people_vote_poll(
     if poll_type == "quiz" and correct_opt_id is not None:
         poll_kwargs["correct_option_id"] = correct_opt_id
 
-    msg = await context.bot.send_poll(**poll_kwargs)
+    msg = await context.bot.send_poll(**poll_kwargs)  # pyright: ignore[reportArgumentType]
 
     payload = {
-        msg.poll.id: (msg.message_id, game_id),
+        msg.poll.id: (msg.message_id, game_id),  # pyright: ignore[reportOptionalMemberAccess]
     }
     context.bot_data.update(payload)
 
     return msg
+
+
+async def handle_select_special_roles(
+    aswer_roles: tuple[int, ...],
+    message_id: int,
+    context: ContextTypes.DEFAULT_TYPE,
+    game: Game,
+) -> None:
+    """
+    Handle the selection of special roles for the players.
+    """
+
+    selected_roles = [list(ROLE)[i] for i in aswer_roles]
+
+    game.set_special_roles(selected_roles)
+
+    _ = await context.bot.stop_poll(
+        chat_id=game.creator.userid,
+        message_id=message_id,
+        reply_markup=None,
+    )
+
+    _ = await context.bot.forward_message(
+        chat_id=game.id,
+        from_chat_id=game.creator.userid,
+        message_id=message_id,
+    )
+    _ = await context.bot.delete_message(
+        chat_id=game.creator.userid,
+        message_id=message_id,
+    )
 
 
 async def handle_build_team_answer(
@@ -357,38 +446,38 @@ async def handle_build_team_answer(
     leader_userid = game.players[game.leader_idx].userid
 
     # TODO: replace message with warning
-    if (voted_team_size := len(answer_team)) != game.team_sizes[game.turn]:
-        _ = await context.bot.send_message(
-            chat_id=leader_userid,
-            text=f"You have selected {voted_team_size} players, but you need to select {game.team_sizes[game.turn]} players.",
-        )
-    else:
-        # stop the poll if the team size is correct
-        _ = await context.bot.stop_poll(
-            chat_id=leader_userid,
-            message_id=message_id,
-            reply_markup=None,
-        )
+    # stop the poll if the team size is correct
+    _ = await context.bot.stop_poll(
+        chat_id=leader_userid,
+        message_id=message_id,
+        reply_markup=None,
+    )
 
-        # player order in poll has the same order as in game.players, so indexing is safe
-        game.create_team([game.players[i] for i in answer_team])
+    # player order in poll has the same order as in game.players, so indexing is safe
+    game.create_team([game.players[i] for i in answer_team])
 
-        # close poll and update game state
-        _ = await context.bot.send_message(
-            text="Let's see if the others approve the team... go back to the game.",
-            chat_id=leader_userid,
-        )
+    # close poll and update game state
+    _ = await context.bot.send_message(
+        text="Let's see if the others approve the team... go back to the game.",
+        chat_id=leader_userid,
+    )
 
-        # forward the poll to the group chat
-        _ = await context.bot.forward_message(
-            chat_id=game.id,
-            from_chat_id=leader_userid,
-            message_id=message_id,
-        )
+    # forward the poll to the group chat
+    _ = await context.bot.forward_message(
+        chat_id=game.id,
+        from_chat_id=leader_userid,
+        message_id=message_id,
+    )
 
-        # go to the team approval phase
-        # await _routine_pre_team_approval_phase(context, game)
-        await _send_public_decision_message(game.players, context, game)
+    # delete the original message with the poll
+    _ = await context.bot.delete_message(
+        chat_id=leader_userid,
+        message_id=message_id,
+    )
+
+    # go to the team approval phase
+    # await _routine_pre_team_approval_phase(context, game)
+    await _send_public_decision_message(game.players, context, game)
 
 
 async def _send_public_decision_message(
@@ -597,7 +686,7 @@ async def _routine_last_chance_phase(
         [x.role for x in game.players].index(ROLE.ASSASSIN)
     ].userid
 
-    _ = await _send_people_vote_poll(
+    _ = await _send_selection_poll(
         context,
         game.id,
         assassin_tg_id,

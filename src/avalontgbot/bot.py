@@ -20,8 +20,10 @@ from .controller import (
     handle_delete_game,
     handle_join_game,
     handle_leave_game,
+    handle_select_special_roles,
+    handle_set_roles,
     handle_start_game,
-    existingGames
+    existingGames,
 )
 from .gamephase import GamePhase as PHASE
 
@@ -35,6 +37,7 @@ logging.basicConfig(
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
@@ -70,6 +73,39 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_html(text) if update.message else None
 
 
+async def pass_creator(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_message:
+        return
+
+    args = context.args
+
+    if not args or len(args) != 1:
+        _ = await update.effective_message.reply_text(
+            "Usage: /passcreator <user mention>"
+        )
+        return
+
+    if user := update.effective_message.parse_entities().get("MENTION"):
+        uid = await context.bot.get_chat(user)
+        reply_text = f"Userid for {user} is: {uid.id}\n"
+        _ = await update.effective_message.reply_text(reply_text)
+    else:
+        _ = await update.effective_message.reply_text(
+            "Please mention a user to get their userid."
+        )
+
+    # show the entities in the message
+    # entities = update.effective_message.parse_entities()
+    # for entity_type, entity in entities.items():
+    #     _ = await update.effective_message.reply_text(
+    #             f"{entity_type}: {entity}"
+    #     )
+
+    return
+
+    await handle_pass_creator(update.effective_message, context)
+
+
 async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await handle_create_game(update)
 
@@ -90,6 +126,17 @@ async def delete_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await handle_delete_game(update)
 
 
+async def set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Set roles for the game."""
+    try:
+        await handle_set_roles(update, context)
+    except (ValueError, KeyError) as e:
+        logger.error(f"Error in set_roles: {e}")
+        _ = await update.effective_message.reply_text(
+            "An error occurred while setting roles. Please try again."
+        )
+
+
 async def button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle button presses."""
     if not (query := update.callback_query):
@@ -102,117 +149,32 @@ async def button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await button_vote_handler(query, buttons, context)
 
 
-# async def send_button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-#     await update.message.reply_text(
-#         text="Please vote for the team using the buttons below.",
-#         reply_markup=InlineKeyboardMarkup(
-#             [
-#                 [
-#                     InlineKeyboardButton("Vote Yes", callback_data="vote_yes"),
-#                     InlineKeyboardButton("Vote No", callback_data="vote_no"),
-#                 ]
-#             ]
-#         ),
-#     )
-#
-#
-#
-#
-# async def handle_test_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-#     q = update.callback_query
-#     b = update.effective_message.reply_markup
-#
-#     """Handle test button presses."""
-#     if not q or not b:
-#         return
-#
-#     _ = await q.answer(
-#         text="votee",
-#         show_alert=False,
-#     )
-#
-#     _ = await q.edit_message_text(
-#         text="You pressed the button!",
-#         reply_markup=b,
-#     )
-
-
 async def receive_poll_answer(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """Handle poll answers."""
-    if not (answer := update.poll_answer):
-        return
-
-    if len(answer.option_ids) == 0:
+    try:
+        answer = update.poll_answer
         # no options selected => vote retracted => no action
-        return
+        if len(answer.option_ids) != 0:
+            poll_msg_id, game_id = context.bot_data[answer.poll_id]
 
-    poll_msg_id, game_id = context.bot_data[answer.poll_id]
+            # check if the poll is in the bot data, shouldn't happen
+            game = existingGames[game_id]
 
-    # check if the poll is in the bot data, shouldn't happen
-    if not (game := existingGames.get(game_id)):
-        return
-
-    if game.phase == PHASE.BUILD_TEAM:
-        await handle_build_team_answer(answer.option_ids, poll_msg_id, context, game)
-    elif game.phase == PHASE.LAST_CHANCE:
-        await handle_assassin_choice(
-            answer.option_ids, poll_msg_id, update, context, game
+            if game.phase == PHASE.BUILD_TEAM:
+                await handle_build_team_answer(answer.option_ids, poll_msg_id, context, game)
+            elif game.phase == PHASE.LAST_CHANCE:
+                await handle_assassin_choice(
+                    answer.option_ids, poll_msg_id, update, context, game
+                )
+            elif game.phase == PHASE.LOBBY:
+                await handle_select_special_roles(answer.option_ids, poll_msg_id, context, game)
+    except Exception as e:
+        logger.error(f"KeyError in receive_poll_answer: {e}")
+        _ = await update.effective_message.reply_text(
+            "An error occurred while processing your answer. Please try again."
         )
-
-
-# async def receive_poll_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-#     """Handle poll answers for testing purposes."""
-#     if not (answer := update.poll_answer):
-#         return
-#
-#     msg_id = context.bot_data.get(answer.poll_id)
-#
-#     if len(answer.option_ids) == 0:
-#         # no options selected => vote retracted => no action
-#         return
-#     elif len(answer.option_ids) == 2:
-#         # For testing, stop the poll if two options are selected
-#         await context.bot.stop_poll(chat_id=update.effective_user.id, message_id=msg_id)
-#
-#         # await msg.stop_poll()
-#         # send message informing what options were selected
-#         msg = await context.bot.send_message(
-#             chat_id=update.effective_user.id,
-#             text=f"You selected options: {', '.join(map(str, answer.option_ids))}. The poll has been stopped.",
-#         )
-#
-#     else:
-#         # warning message
-#         await context.bot.send_message(
-#             chat_id=update.effective_user.id,
-#             text="You can only select two options for this test poll. Please try again.",
-#         )
-
-
-# async def private_poll_test(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-#     """Test command for private polls."""
-#     if not update.effective_message:
-#         return
-#
-#     # Create a poll with options
-#     question = "Choose your favorite option:"
-#     options = ["Option 1", "Option 2", "Option 3"]
-#
-#     # Send the poll to the user
-#     message = await context.bot.send_poll(
-#         chat_id=update.effective_user.id,  # Send to the user privately
-#         question=question,
-#         options=options,
-#         is_anonymous=False,  # Set to False to allow public voting
-#         allows_multiple_answers=True,  # Set to True if you want multiple answers
-#     )
-#
-#     payload = {
-#         message.poll.id: message.message_id,
-#     }
-#     context.bot_data.update(payload)
 
 
 def main() -> None:
@@ -226,6 +188,8 @@ def main() -> None:
     application.add_handler(CommandHandler("startgame", start_game))
     application.add_handler(CommandHandler("delete", delete_game))
     application.add_handler(CommandHandler("rules", rules))
+    application.add_handler(CommandHandler("setroles", set_roles))
+    application.add_handler(CommandHandler("passcreator", pass_creator))
     # application.add_handler(CommandHandler("privatepoll", private_poll_test))
     application.add_handler(CallbackQueryHandler(button_vote))
     application.add_handler(PollAnswerHandler(receive_poll_answer))

@@ -3,23 +3,11 @@ from enum import Enum
 
 
 class Role(Enum):
-    MERLIN = (
-        "Merlin 🧙‍♂️",
-        True,
-    )
-    LSOA = (
-        "Loyal Servant of Arthur 🛡️",
-        True,
-    )
     PERCIVAL = (
         "Percival 🏰",
         True,
     )
 
-    ASSASSIN = (
-        "Assassin 🩸",
-        False,
-    )
     MORGANA = (
         "Morgana 🧛‍♀️",
         False,
@@ -31,6 +19,20 @@ class Role(Enum):
     OBERON = (
         "Oberon 🦄",
         False,
+    )
+
+    MERLIN = (
+        "Merlin 🧙‍♂️",
+        True,
+    )
+    ASSASSIN = (
+        "Assassin 🩸",
+        False,
+    )
+
+    LSOA = (
+        "Loyal Servant of Arthur 🛡️",
+        True,
     )
     MOM = (
         "Minion of Mordred 👿",
@@ -55,8 +57,16 @@ class Role(Enum):
             / f"{self.name.lower()}.html"
         )
 
+    @property
+    def is_good(self) -> bool:
+        return self.value[1]
+
     def __getitem__(self, index: int):
         return self.value[index]
 
     def __str__(self):
         return self.value[0]
+
+    @property
+    def is_special(self) -> bool:
+        return self not in {self.MOM, self.LSOA}

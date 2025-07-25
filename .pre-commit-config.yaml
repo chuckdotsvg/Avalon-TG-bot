@@ -4,5 +4,6 @@ repos:
       - id: pytest
         name: Run Pytest
         entry: pytest
+        args: ["tests"]
         language: system
         types: [python]
