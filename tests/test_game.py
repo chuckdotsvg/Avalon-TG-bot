@@ -167,10 +167,10 @@ def test_game_ongoing(game_with_correct_extra_roles: Game):
     assert set(special_roles) == set(game_with_correct_extra_roles.special_roles)
 
 def test_pass_creator(started_game: Game):
-    creator_idx = started_game.players.index(started_game.creator)
-    new_creator = started_game.players[creator_idx + 1]
+    idx_creator = started_game.players.index(started_game.creator)
+    new_creator = started_game.players[idx_creator - 1] # another player
 
-    assert raises(ValueError, started_game.pass_creator, started_game.players[creator_idx])
+    assert raises(ValueError, started_game.pass_creator, started_game.players[idx_creator])
     assert raises(ValueError, started_game.pass_creator, Player(999999999, "NonExistent"))
     started_game.pass_creator(new_creator)
 

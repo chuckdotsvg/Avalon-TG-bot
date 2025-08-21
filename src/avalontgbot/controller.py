@@ -473,8 +473,6 @@ async def handle_pass_creator_choice(
     """
     Handle the choice of a new game creator.
     """
-    await _routine_pass_creator(answer[0], game, context)
-
     _ = await context.bot.stop_poll(
         chat_id=game.creator.userid,
         message_id=message_id,
@@ -486,6 +484,8 @@ async def handle_pass_creator_choice(
         chat_id=game.creator.userid,
         message_id=message_id,
     )
+
+    await _routine_pass_creator(answer[0], game, context)
 
 
 async def _routine_pass_creator(
