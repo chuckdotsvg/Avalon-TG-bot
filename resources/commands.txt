@@ -6,3 +6,6 @@ join - Join an existing game
 leave - Leave the current game
 startgame - Start the current game
 delete - delete an existing game in current chat
+rules - da rules
+passcreator - pass creator rights to another player
+setroles - add or removes special roles

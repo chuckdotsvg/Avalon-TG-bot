@@ -1,4 +1,5 @@
 import json
+import logging
 
 from telegram import (
     CallbackQuery,
@@ -8,15 +9,24 @@ from telegram import (
     Update,
 )
 from telegram.constants import PollType as POLLTYPE
+from telegram.error import BadRequest
 from telegram.ext import (
     ContextTypes,
 )
 
-from .constants import MANDATORY_ROLES, MAX_TEAM_REJECTS
+from .constants import MANDATORY_ROLES, MAX_TEAM_REJECTS, MIN_PLAYERS
 from .game import Game
 from .gamephase import GamePhase as PHASE
 from .player import Player
 from .role import Role as ROLE
+
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.WARNING
+)
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
 
 existingGames: dict[int, Game] = {}
 
@@ -190,31 +200,33 @@ async def handle_pass_creator(update: Update, context: ContextTypes.DEFAULT_TYPE
     """
     Handle the passing of the game creator role to another player.
     """
-    if not update.message or not update.effective_user:
-        return
 
     group_id = update.message.chat_id
-
-    # check if there is a game in the group
-    if group_id not in existingGames.keys():
-        _ = await update.message.reply_text(
-            "There is no game in this group. Please create one first."
-        )
-        return
-
     game = existingGames[group_id]
 
-    # check if the requesting user is the creator
-    if update.effective_user.id != game.creator.userid:
-        _ = await update.message.reply_text("Only the creator can pass the role.")
-        return
+    if game.lookup_player(update.effective_user.id) is not game.creator:
+        raise KeyError("Only the creator can pass the host.")
 
-    # pass the creator role to the next player
-    new_creator = game.pass_creator()
+    candidates = [str(x) for x in game.players if x is not game.creator]
 
-    _ = await update.message.reply_text(
-        f"{new_creator.mention()} is now the creator of the game."
-    )
+    if len(candidates) == 0:
+        raise ValueError(
+            "There are not enough players to pass the host. At least 2 players are required."
+        )
+    elif len(candidates) == 1:
+        # if there is only one candidate, pass the host immediately
+        await _routine_pass_creator(0, game, context)
+    else:
+        _ = await _send_selection_poll(
+            context,
+            game.id,
+            game.creator.userid,
+            candidates,
+            "Select a new host",
+            POLLTYPE.REGULAR,
+            None,
+            False,  # only one answer allowed
+        )
 
 
 async def handle_start_game(
@@ -224,62 +236,70 @@ async def handle_start_game(
     """
     Handle the start of the game, checking for conditions such as creator and player count.
     """
-    if not update.message or not update.effective_user:
-        # TODO: handle telegram errors
-        return
+    # if not update.message or not update.effective_user:
+    #     # TODO: handle telegram errors
+    #     return
 
-    # check if there is a game in the group
-    if (group_id := update.message.chat_id) not in existingGames.keys():
-        _ = await update.message.reply_text(
-            "There is no game in this group. Please create one first."
-        )
-        return
+    # # check if there is a game in the group
+    # if (group_id := update.message.chat_id) not in existingGames.keys():
+    #     _ = await update.message.reply_text(
+    #         "There is no game in this group. Please create one first."
+    #     )
+    #     return
 
-    game = existingGames[group_id]
+    game = existingGames[update.message.chat_id]
 
     # check if the requesting user is the creator
     if update.effective_user.id != game.creator.userid:
-        _ = await update.message.reply_text("Only the creator can start the game.")
-        return
+        raise ValueError("Only the creator can start the game.")
 
     # check if there are enough players
-    if len(game.players) < 5:
-        _ = await update.message.reply_text(
+    if len(game.players) < MIN_PLAYERS:
+        raise ValueError(
             "Not enough players to start the game. Minimum 5 players required."
         )
-        return
 
     if game.is_ongoing:
-        _ = await update.message.reply_text("The game is already ongoing.")
-    else:
-        # this effectively starts the game
-        await _routine_start_game(context, game)
+        raise ValueError("The game is already ongoing.")
+
+    # this effectively starts the game
+    await _routine_start_game(context, game)
 
 
 async def handle_delete_game(update: Update):
     """
     Handle the deletion of a game.
     """
-    if not update.message or not update.effective_user:
-        return
+    # if not update.message or not update.effective_user:
+    #     return
+    #
+    # group_id = update.message.chat_id
+    #
+    # # check if there is a game in the group
+    # if group_id in existingGames.keys():
+    #     game = existingGames[group_id]
+    #
+    #     # check if the requesting user is the creator
+    #     if update.effective_user.id != game.creator.userid:
+    #         _ = await update.message.reply_text("Only the creator can delete the game.")
+    #         return
+    #
+    #     # remove the game from the existing games
+    #     del existingGames[group_id]
+    #
+    #     _ = await update.message.reply_text("The game has been deleted.")
+    # else:
+    #     _ = await update.message.reply_text("There is no game in this group.")
 
     group_id = update.message.chat_id
 
-    # check if there is a game in the group
-    if group_id in existingGames.keys():
-        game = existingGames[group_id]
+    game = existingGames[group_id]
 
-        # check if the requesting user is the creator
-        if update.effective_user.id != game.creator.userid:
-            _ = await update.message.reply_text("Only the creator can delete the game.")
-            return
+    if update.effective_user.id != game.creator.userid:
+        raise ValueError("Only the creator can delete the game.")
 
-        # remove the game from the existing games
-        del existingGames[group_id]
-
-        _ = await update.message.reply_text("The game has been deleted.")
-    else:
-        _ = await update.message.reply_text("There is no game in this group.")
+    del existingGames[group_id]
+    _ = await update.message.reply_text("The game has been deleted.")
 
 
 async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
@@ -288,6 +308,31 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
     """
     game.start_game()
 
+    try:
+        for player in game.players:
+            text = f"Your role is: {player.role}.\n"  # now role can't be None
+
+            text += player.role.description()  # role description
+
+            if not player.is_good():
+                text += f"Your teammates are: {', '.join(str(p) for p in game.evil_list() if p != player)}.\n"
+
+            if player.role == ROLE.MERLIN:
+                text += f"Evil team is composed of: {', '.join(str(p) for p in game.evil_list())}.\n"
+
+            _ = await context.bot.send_message(
+                chat_id=player.userid,
+                text=text,
+                parse_mode="HTML",
+            )
+    except BadRequest as e:
+        logger.error(f"Error with private message: {e}")
+        _ = await context.bot.send_message(
+            chat_id=game.id,
+            text="Not all players started the bot in private! Game cannot start yet",
+        )
+
+    # TODO: wait players to start private chat to send this to public
     info_txt = (
         f"Game started with {len(game.players)} players.\n"
         f"Number of evil players: {len(game.evil_list())}\n"
@@ -307,23 +352,6 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
         chat_id=game.id,
         text=info_txt,
     )
-
-    for player in game.players:
-        text = f"Your role is: {player.role}.\n"  # now role can't be None
-
-        text += player.role.description()  # role description
-
-        if not player.is_good():
-            text += f"Your teammates are: {', '.join(str(p) for p in game.evil_list() if p != player)}.\n"
-
-        if player.role == ROLE.MERLIN:
-            text += f"Evil team is composed of: {', '.join(str(p) for p in game.evil_list())}.\n"
-
-        _ = await context.bot.send_message(
-            chat_id=player.userid,
-            text=text,
-            parse_mode="HTML",
-        )
 
     await _routine_pre_team_building(context, game)
 
@@ -369,6 +397,7 @@ async def _send_selection_poll(
     poll_msg: str,
     poll_type: POLLTYPE,
     correct_opt_id: int | None,
+    are_multiple_answers: bool = True,
 ) -> Message:
     """
     Send a poll to the recipient with the given options.
@@ -379,6 +408,7 @@ async def _send_selection_poll(
     :param poll_msg: the message to be sent with the poll
     :param poll_type: the type of the poll (regular or quiz)
     :param correct_opt_id: the index of the correct option (if any, for quiz polls)
+    :param are_multiple_answers: whether the poll allows multiple answers
     """
 
     poll_kwargs = {
@@ -387,7 +417,7 @@ async def _send_selection_poll(
         "options": opts_str,
         "is_anonymous": False,
         "type": poll_type,
-        "allows_multiple_answers": True,
+        "allows_multiple_answers": are_multiple_answers,
     }
 
     if poll_type == "quiz" and correct_opt_id is not None:
@@ -396,7 +426,7 @@ async def _send_selection_poll(
     msg = await context.bot.send_poll(**poll_kwargs)  # pyright: ignore[reportArgumentType]
 
     payload = {
-        msg.poll.id: (msg.message_id, game_id),  # pyright: ignore[reportOptionalMemberAccess]
+        msg.poll.id: (msg.poll, msg.message_id, game_id),  # pyright: ignore[reportOptionalMemberAccess]
     }
     context.bot_data.update(payload)
 
@@ -431,6 +461,47 @@ async def handle_select_special_roles(
     _ = await context.bot.delete_message(
         chat_id=game.creator.userid,
         message_id=message_id,
+    )
+
+
+async def handle_pass_creator_choice(
+    answer: tuple[int, ...],
+    message_id: int,
+    context: ContextTypes.DEFAULT_TYPE,
+    game: Game,
+) -> None:
+    """
+    Handle the choice of a new game creator.
+    """
+    await _routine_pass_creator(answer[0], game, context)
+
+    _ = await context.bot.stop_poll(
+        chat_id=game.creator.userid,
+        message_id=message_id,
+        reply_markup=None,
+    )
+
+    # delete the original message with the poll
+    _ = await context.bot.delete_message(
+        chat_id=game.creator.userid,
+        message_id=message_id,
+    )
+
+
+async def _routine_pass_creator(
+    new_creator_idx: int, game: Game, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """
+    Routine to pass the game creator role to a new player.
+    """
+    candidates = [x for x in game.players if x != game.creator]
+
+    game.pass_creator(candidates[new_creator_idx])
+
+    _ = await context.bot.send_message(
+        chat_id=game.id,
+        text=f"{game.creator.mention()} is the new host.",
+        parse_mode="HTML",
     )
 
 

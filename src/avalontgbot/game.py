@@ -93,10 +93,6 @@ class Game:
 
         self.creator = player
 
-        # if the creator is passed, reset the votes and rejection count
-        self.votes.clear()
-        self.rejection_count = 0
-
     def __update_winner(self):
         temp_winner, temp_win_count = Counter(self.missions).most_common(1)[0]
 
@@ -270,9 +266,7 @@ class Game:
             )
             raise ValueError(text)
 
-        num_of_servants = num_good - [
-            x[1] for x in self.special_roles
-        ].count(True)
+        num_of_servants = num_good - [x[1] for x in self.special_roles].count(True)
         num_of_minions = num_players - num_of_servants - num_special
 
         current_index = 0
@@ -350,12 +344,13 @@ class Game:
             if not p.is_good() and (not real or p.role != ROLE.MORDRED)
         ]
 
-    # def username_to_id(self, username: str) -> int:
-    #     """
-    #     Converts a username to a user ID.
-    #     :param username: The username to convert.
-    #     :return: The user ID as an integer.
-    #     """
+    def roles_to_players(self, roles: set[ROLE]) -> list[Player]:
+        """
+        Returns a list of players with specific roles.
+        :param roles: Set of ROLE objects to filter players by.
+        :return: List of Player objects with the specified roles.
+        """
+        return [p for p in self.players if p.role in roles]
 
     @property
     def players(self):

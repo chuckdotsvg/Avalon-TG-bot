@@ -20,6 +20,8 @@ from .controller import (
     handle_delete_game,
     handle_join_game,
     handle_leave_game,
+    handle_pass_creator,
+    handle_pass_creator_choice,
     handle_select_special_roles,
     handle_set_roles,
     handle_start_game,
@@ -73,39 +75,6 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_html(text) if update.message else None
 
 
-async def pass_creator(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.effective_message:
-        return
-
-    args = context.args
-
-    if not args or len(args) != 1:
-        _ = await update.effective_message.reply_text(
-            "Usage: /passcreator <user mention>"
-        )
-        return
-
-    if user := update.effective_message.parse_entities().get("MENTION"):
-        uid = await context.bot.get_chat(user)
-        reply_text = f"Userid for {user} is: {uid.id}\n"
-        _ = await update.effective_message.reply_text(reply_text)
-    else:
-        _ = await update.effective_message.reply_text(
-            "Please mention a user to get their userid."
-        )
-
-    # show the entities in the message
-    # entities = update.effective_message.parse_entities()
-    # for entity_type, entity in entities.items():
-    #     _ = await update.effective_message.reply_text(
-    #             f"{entity_type}: {entity}"
-    #     )
-
-    return
-
-    await handle_pass_creator(update.effective_message, context)
-
-
 async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await handle_create_game(update)
 
@@ -119,12 +88,19 @@ async def leave_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 
 async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await handle_start_game(update, context)
+    try:
+        await handle_start_game(update, context)
+    except (ValueError, KeyError) as e:
+        logger.error(f"Error in start_game: {e}")
+        _ = await update.effective_message.reply_text(str(e))
 
 
 async def delete_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await handle_delete_game(update)
-
+    try:
+        await handle_delete_game(update)
+    except (ValueError, KeyError) as e:
+        logger.error(f"Error in delete_game: {e}")
+        _ = await update.effective_message.reply_text(str(e))
 
 async def set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Set roles for the game."""
@@ -135,6 +111,15 @@ async def set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         _ = await update.effective_message.reply_text(
             "An error occurred while setting roles. Please try again."
         )
+
+
+async def pass_creator(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Set roles for the game."""
+    try:
+        await handle_pass_creator(update, context)
+    except (ValueError, KeyError) as e:
+        logger.error(f"Error in set_roles: {e}")
+        _ = await update.effective_message.reply_text(str(e))
 
 
 async def button_vote(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -157,24 +142,30 @@ async def receive_poll_answer(
         answer = update.poll_answer
         # no options selected => vote retracted => no action
         if len(answer.option_ids) != 0:
-            poll_msg_id, game_id = context.bot_data[answer.poll_id]
+            poll, poll_msg_id, game_id = context.bot_data[answer.poll_id]  # pyright: ignore[reportAny]
 
             # check if the poll is in the bot data, shouldn't happen
             game = existingGames[game_id]
 
+            if not poll.allows_multiple_answers:
+                await handle_pass_creator_choice(
+                    answer.option_ids, poll_msg_id, context, game
+                )
             if game.phase == PHASE.BUILD_TEAM:
-                await handle_build_team_answer(answer.option_ids, poll_msg_id, context, game)
+                await handle_build_team_answer(
+                    answer.option_ids, poll_msg_id, context, game
+                )
             elif game.phase == PHASE.LAST_CHANCE:
                 await handle_assassin_choice(
                     answer.option_ids, poll_msg_id, update, context, game
                 )
             elif game.phase == PHASE.LOBBY:
-                await handle_select_special_roles(answer.option_ids, poll_msg_id, context, game)
+                await handle_select_special_roles(
+                    answer.option_ids, poll_msg_id, context, game
+                )
     except Exception as e:
-        logger.error(f"KeyError in receive_poll_answer: {e}")
-        _ = await update.effective_message.reply_text(
-            "An error occurred while processing your answer. Please try again."
-        )
+        logger.error(f"Error in receive_poll_answer: {e}")
+        _ = await update.effective_message.reply_text(str(e))
 
 
 def main() -> None:
