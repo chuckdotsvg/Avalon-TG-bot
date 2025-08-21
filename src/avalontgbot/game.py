@@ -147,22 +147,25 @@ class Game:
 
         return result
 
-    def add_player_vote(self, player: Player | None, vote: bool) -> bool:
+    def add_player_vote(self, player: Player | None, vote: bool) -> list[Player]:
         """
         Adds a player's vote to the game.
         :param vote: Boolean value indicating the player's vote.
-        :return: True if the everyone has voted, False otherwise.
+        :param player: Player object representing the voter.
+        :return: List of players who are missing to vote.
         """
         voters = self.team if self.phase == PHASE.QUEST else self.players
+        voters = [p for p in voters if p not in self.votes]
 
         if player not in voters:
             raise ValueError("Player not allowed to vote.")
 
         self.votes[player] = vote
 
-        required_votes = len(voters)
+        # consider the recent vote too
+        voters.remove(player)
 
-        return len(self.votes) == required_votes
+        return voters
 
     def are_enough_players(self) -> bool:
         """

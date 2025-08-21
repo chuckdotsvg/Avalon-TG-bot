@@ -76,15 +76,27 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def create_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await handle_create_game(update)
+    try:
+        await handle_create_game(update)
+    except (ValueError, KeyError) as e:
+        logger.error(f"Error in create_game: {e}")
+        _ = await update.effective_message.reply_text(str(e))
 
 
 async def join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await handle_join_game(update, context)
+    try:
+        await handle_join_game(update, context)
+    except (ValueError, KeyError) as e:
+        logger.error(f"Error in join_game: {e}")
+        _ = await update.effective_message.reply_text(str(e))
 
 
 async def leave_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await handle_leave_game(update)
+    try:
+        await handle_leave_game(update)
+    except (ValueError, KeyError) as e:
+        logger.error(f"Error in leave_game: {e}")
+        _ = await update.effective_message.reply_text(str(e))
 
 
 async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -181,7 +193,7 @@ def main() -> None:
     application.add_handler(CommandHandler("rules", rules))
     application.add_handler(CommandHandler("setroles", set_roles))
     application.add_handler(CommandHandler("passcreator", pass_creator))
-    # application.add_handler(CommandHandler("privatepoll", private_poll_test))
+
     application.add_handler(CallbackQueryHandler(button_vote))
     application.add_handler(PollAnswerHandler(receive_poll_answer))
 

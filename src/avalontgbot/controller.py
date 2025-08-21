@@ -35,25 +35,19 @@ async def handle_create_game(update: Update) -> None:
     """
     Handle the creation of a new game.
     """
-    if not update.message or not update.effective_user:
-        return
     group_id = update.message.chat_id
 
-    # check if there is already a game in the group
-    if group_id not in existingGames.keys():
-        # add new game
-        existingGames[group_id] = Game(
-            Player(update.effective_user.id, update.effective_user.full_name), group_id
-        )
+    if existingGames.get(group_id) is not None:
+        raise ValueError("There is already a game in this group.")
 
-        _ = await update.message.reply_text(
-            "Game created! You are alone now... wait for some friends.\n",
-            # reply_markup=telegram.ReplyKeyboardRemove(),
-        )
-    else:
-        _ = await update.message.reply_text(
-            "There is already a game in this group. Please finish it before creating a new one."
-        )
+    # check if there is already a game in the group
+    existingGames[group_id] = Game(
+        Player(update.effective_user.id, update.effective_user.full_name), group_id
+    )
+
+    _ = await update.message.reply_text(
+        "Game created! You are alone now... wait for some friends.\n",
+    )
 
 
 async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -61,23 +55,13 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Handle a player joining an existing game.
     :return: the new game state after the player has joined
     """
-    # suppose lobby isn't full
-    if not update.message:
-        # TODO: handle telegram errors
-        return
-
     # check if there is a game in the group
     if (group_id := update.message.chat_id) not in existingGames.keys():
-        _ = await update.message.reply_text(
-            "There is no game in this group. Please create one first."
-        )
-        return
-
-    if not (user := update.effective_user):
-        # TODO: handle telegram errors
-        return
+        raise KeyError("There is no game in this group. Please create one first.")
 
     game = existingGames[group_id]
+
+    user = update.effective_user
 
     p = game.lookup_player(user.id)
 
@@ -113,8 +97,6 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if len(game.players) == 10:
                 await _routine_start_game(context, game)
 
-    return
-
 
 async def handle_set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -122,7 +104,8 @@ async def handle_set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     group_id = update.message.chat_id
 
-    game = existingGames[group_id]
+    if (game := existingGames.get(group_id)) is None:
+        raise KeyError("There is no game in this group. Please create one first.")
 
     # check if the requesting user is the creator
     if update.effective_user.id != game.creator.userid:
@@ -671,58 +654,51 @@ async def button_vote_handler(
     buttons: InlineKeyboardMarkup | None,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    if not query.data:
-        return
+    try:
+        data = json.loads(query.data)
+        vote = data.get("vote")
 
-    data = json.loads(query.data)
-    vote = data.get("vote")
+        game = existingGames[data.get("gid")]
 
-    # assume the vote is valid, if not, we will change it later
-    alert = "Vote received!"
+        player = game.lookup_player(query.from_user.id)
 
-    if not (game := existingGames.get(data.get("gid"))):
-        _ = await query.answer(
-            text="Game not found. Please try again later.",
-            show_alert=True,
-        )
-        return
-
-    player = game.lookup_player(query.from_user.id)
-
-    list_to_check = [
-        p
-        for p in (game.team if game.phase == PHASE.QUEST else game.players)
-        if p not in game.votes.keys()
-    ]
-
-    if player not in list_to_check:
-        is_valid = is_voting_ended = False
-        alert = "Vote not allowed"
-    else:
-        is_valid = True
-        is_voting_ended = game.add_player_vote(
+        missing_voters = game.add_player_vote(
             # query.data is a string, so we need to convert it to a boolean
             player,
             vote == "yes",
         )
-        # remove the player from the list to check
-        list_to_check.remove(player)
 
-    _ = await query.answer(text=alert, show_alert=not is_valid)
+        _ = await query.answer(text="Vote received", show_alert=False)
 
-    # repeat the process until the voting is succesful
-    if is_voting_ended:
-        _ = await query.delete_message()
-        if game.phase == PHASE.BUILD_TEAM:
-            await _routine_post_team_approval_phase(context, game)
-        elif game.phase == PHASE.QUEST:
-            await _routine_post_mission_phase(context, game)
-    elif is_valid:
-        _ = await query.edit_message_text(
-            text=f"People missing: {', '.join(p.mention() for p in list_to_check)}.\n",
-            # remove the inline keyboard if the voting is ended
-            reply_markup=buttons,
-            parse_mode="HTML",
+        # repeat the process until the voting is succesful
+        if len(missing_voters) == 0:
+            _ = await query.delete_message()
+            if game.phase == PHASE.BUILD_TEAM:
+                await _routine_post_team_approval_phase(context, game)
+            elif game.phase == PHASE.QUEST:
+                await _routine_post_mission_phase(context, game)
+        else:
+            _ = await query.edit_message_text(
+                text=f"People missing: {', '.join(p.mention() for p in missing_voters)}.\n",
+                # remove the inline keyboard if the voting is ended
+                reply_markup=buttons,
+                parse_mode="HTML",
+            )
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Error in button_vote_handler: {e}")
+        _ = await query.answer(
+            text="An error occurred while processing your vote. Please try again later.",
+            show_alert=True,
+        )
+    except ValueError as e:
+        logger.error(f"ValueError in button_vote_handler: {e}")
+        _ = await query.answer(text=str(e), show_alert=True)
+    except KeyError as e:
+        logger.error(f"KeyError in button_vote_handler: {e}")
+        _ = await query.answer(
+            text="There is no game in this group. Please create one first.",
+            show_alert=True,
         )
 
 
