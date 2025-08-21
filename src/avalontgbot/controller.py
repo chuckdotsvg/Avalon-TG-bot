@@ -142,7 +142,7 @@ async def handle_set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
         game.id,
         game.creator.userid,
         special_roles_str,
-        "Select special roles",
+        "Select special roles. If you select None, no special roles will be used.",
         POLLTYPE.REGULAR,
         None,
     )
@@ -348,11 +348,13 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
     try:
         for player in game.players:
             # announce the role in the respective game in private chat
+            # to trigger the bot in private chat
             _ = await context.bot.send_message(
                 chat_id=player.userid,
                 text=f"Avalon game in group {chat.title} is starting!\n",
             )
 
+        for player in game.players:
             text = f"Your role is: {player.role}.\n"  # now role can't be None
 
             text += player.role.description()  # role description
@@ -506,7 +508,7 @@ async def handle_select_special_roles(
         selected_roles = []
     else:
         # consider the shift in the options
-        selected_roles = [list(ROLE)[i-1] for i in aswer_roles]
+        selected_roles = [list(ROLE)[i - 1] for i in aswer_roles]
 
     game.set_special_roles(selected_roles)
 
