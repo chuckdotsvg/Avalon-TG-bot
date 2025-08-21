@@ -126,12 +126,15 @@ async def handle_set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # check if the requesting user is the creator
     if update.effective_user.id != game.creator.userid:
-        _ = await update.message.reply_text("Only the creator can set roles.")
-        return
+        raise ValueError("Only the creator can set roles.")
 
     special_roles_str = list(
         str(x) for x in ROLE if x.is_special and x not in MANDATORY_ROLES
     )
+
+    special_roles_str.insert(
+        0, "None (no special roles)"
+    )  # add the option to not use special roles
 
     # set roles for the players
     _ = await _send_selection_poll(
@@ -149,51 +152,82 @@ async def handle_leave_game(update: Update):
     """
     Handle a player leaving the game.
     """
-    if not update.message:
-        return
+    # if not update.message:
+    #     return
+    # group_id = update.message.chat_id
+    #
+    # # check if there is a game in the group
+    # if group_id in existingGames.keys():
+    #     game = existingGames[group_id]
+    #
+    #     # safety check
+    #     if not (user := update.effective_user):
+    #         return
+    #
+    #     if (player := game.lookup_player(user.id)) is None:
+    #         _ = await update.message.reply_text(
+    #             "You are not in the game. Please join first."
+    #         )
+    #     else:
+    #         # notify the group about the new creator, in case the old one left
+    #         # TODO: highlight the (new) creator
+    #         old_creator_name = str(game.creator)
+    #
+    #         # if there are no players left, remove the Game
+    #         if not game.player_leave(player):
+    #             # remove the game from the existing games
+    #             del existingGames[group_id]
+    #
+    #             text = "All players have left the game. The game has been removed."
+    #
+    #         else:
+    #             text = (
+    #                 f"{user.mention_html()} has left the game!\n"
+    #                 f" Players waiting: {', '.join(str(p) for p in game.players if p.is_online)}\n"
+    #             )
+    #             if old_creator_name != str(game.creator):
+    #                 text += (
+    #                     "The game creator has left!\n"
+    #                     f"{game.creator.mention()} is the new creator.\n"
+    #                 )
+    #
+    #         _ = await update.message.reply_html(text)
+    #
+    # else:
+    #     _ = await update.message.reply_text(
+    #         "There is no game in this group. Please create one first."
+    #     )
+
     group_id = update.message.chat_id
+    user = update.effective_user
 
-    # check if there is a game in the group
-    if group_id in existingGames.keys():
-        game = existingGames[group_id]
+    game = existingGames[group_id]
 
-        # safety check
-        if not (user := update.effective_user):
-            return
+    player = game.lookup_player(user.id)
 
-        if (player := game.lookup_player(user.id)) is None:
-            _ = await update.message.reply_text(
-                "You are not in the game. Please join first."
-            )
-        else:
-            # notify the group about the new creator, in case the old one left
-            # TODO: highlight the (new) creator
-            old_creator_name = str(game.creator)
+    # TODO: highlight the (new) creator
+    old_creator_name = str(game.creator)
 
-            # if there are no players left, remove the Game
-            if not game.player_leave(player):
-                # remove the game from the existing games
-                del existingGames[group_id]
+    # if there are no players left, remove the Game
+    if not game.player_leave(player):
+        # remove the game from the existing games
+        del existingGames[group_id]
 
-                text = "All players have left the game. The game has been removed."
-
-            else:
-                text = (
-                    f"{user.mention_html()} has left the game!\n"
-                    f" Players waiting: {', '.join(str(p) for p in game.players if p.is_online)}\n"
-                )
-                if old_creator_name != str(game.creator):
-                    text += (
-                        "The game creator has left!\n"
-                        f"{game.creator.mention()} is the new creator.\n"
-                    )
-
-            _ = await update.message.reply_html(text)
+        text = "All players have left the game. The game has been removed."
 
     else:
-        _ = await update.message.reply_text(
-            "There is no game in this group. Please create one first."
+        text = (
+            f"{user.mention_html()} has left the game!\n"
+            f" Players waiting: {', '.join(str(p) for p in game.players if p.is_online)}\n"
         )
+        # notify the group about the new creator, in case the old one left
+        if old_creator_name != str(game.creator):
+            text += (
+                "The game creator has left!\n"
+                f"{game.creator.mention()} is the new creator.\n"
+            )
+
+    _ = await update.message.reply_html(text)
 
 
 async def handle_pass_creator(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -293,7 +327,8 @@ async def handle_delete_game(update: Update):
 
     group_id = update.message.chat_id
 
-    game = existingGames[group_id]
+    if (game := existingGames.get(group_id)) is None:
+        raise KeyError("There is no game in this group. Please create one first.")
 
     if update.effective_user.id != game.creator.userid:
         raise ValueError("Only the creator can delete the game.")
@@ -308,17 +343,41 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
     """
     game.start_game()
 
+    chat = await context.bot.get_chat(game.id)
+
     try:
         for player in game.players:
+            # announce the role in the respective game in private chat
+            _ = await context.bot.send_message(
+                chat_id=player.userid,
+                text=f"Avalon game in group {chat.title} is starting!\n",
+            )
+
             text = f"Your role is: {player.role}.\n"  # now role can't be None
 
             text += player.role.description()  # role description
 
-            if not player.is_good():
+            if not player.is_good() and player.role != ROLE.OBERON:
                 text += f"Your teammates are: {', '.join(str(p) for p in game.evil_list() if p != player)}.\n"
 
             if player.role == ROLE.MERLIN:
-                text += f"Evil team is composed of: {', '.join(str(p) for p in game.evil_list())}.\n"
+                hidden = {ROLE.MORDRED, ROLE.OBERON}
+                seekable = [
+                    x
+                    for x in game.evil_list()
+                    if x not in game.roles_to_players(hidden)
+                ]
+
+                text += f"Evil team is composed of: {', '.join(str(p) for p in seekable)}.\n"
+
+                if len(hidden) > 0:
+                    text += f"But be careful about the hidden presence of {'and '.join(str(r) for r in set(game.special_roles) & hidden)}!\n"
+            elif player.role == ROLE.PERCIVAL:
+                merlins = game.roles_to_players({ROLE.MERLIN, ROLE.MORGANA})
+                text += "You can see Merlin"
+                if len(merlins) > 1:
+                    text += " and Morgana, but you don't know who is who"
+                text += f": {', '.join(str(p) for p in merlins)}.\n"
 
             _ = await context.bot.send_message(
                 chat_id=player.userid,
@@ -332,7 +391,6 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
             text="Not all players started the bot in private! Game cannot start yet",
         )
 
-    # TODO: wait players to start private chat to send this to public
     info_txt = (
         f"Game started with {len(game.players)} players.\n"
         f"Number of evil players: {len(game.evil_list())}\n"
@@ -443,7 +501,12 @@ async def handle_select_special_roles(
     Handle the selection of special roles for the players.
     """
 
-    selected_roles = [list(ROLE)[i] for i in aswer_roles]
+    if 0 in aswer_roles:
+        # if the first option is selected, no special roles are used
+        selected_roles = []
+    else:
+        # consider the shift in the options
+        selected_roles = [list(ROLE)[i-1] for i in aswer_roles]
 
     game.set_special_roles(selected_roles)
 
