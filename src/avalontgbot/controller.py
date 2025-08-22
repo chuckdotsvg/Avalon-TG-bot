@@ -63,39 +63,60 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = update.effective_user
 
-    p = game.lookup_player(user.id)
+    p = game.lookup_player(user.id) or Player(user.id, user.full_name)
 
-    if p is not None:
-        if p.is_online:  # player is already in the game
-            _ = await update.message.reply_text("You are already in the game")
-        elif not game.is_ongoing:  # player is in the game, but not online
-            game.player_join(p)
+    # check if the game is running
+    old_phase = game.phase
+    old_state = game.is_ongoing
 
-            if game.is_ongoing:
-                # notify the group if everyone is online
-                _ = await update.message.reply_text(
-                    "Everyone is online again, the game can continue!"
-                )
+    game.player_join(p)
+
+    txt = f"{user.mention_html()} has joined the game!\n"
+
+    if (
+        old_phase != PHASE.LOBBY and not old_state and game.is_ongoing
+    ):  # game can resume and has already started
+        txt += "Everyone is online again, the game can continue!"
     else:
-        # player is not in the game, so we create a new Player
-        p = Player(user.id, user.full_name)
-        if game.phase != PHASE.LOBBY:
-            # game already started, cannot join
-            _ = await update.message.reply_text(
-                "The game has already started. You cannot join now."
-            )
-        else:
-            game.player_join(p)
+        txt += f"Players waiting: {', '.join(str(p) for p in game.players if p.is_online)}\n"
 
-            text = (
-                f"{user.mention_html()} has joined the game!\n"
-                "Remember to start this bot in private chat\n"
-                f"Players waiting: {', '.join(str(p) for p in game.players)}"
-            )
-            _ = await update.message.reply_html(text)
+    _ = await context.bot.send_message(
+        chat_id=game.id,
+        text=txt,
+        parse_mode="HTML",
+    )
 
-            if len(game.players) == 10:
-                await _routine_start_game(context, game)
+    # if p is not None:
+    #     if p.is_online:  # player is already in the game
+    #         _ = await update.message.reply_text("You are already in the game")
+    #     elif not game.is_ongoing:  # player is in the game, but not online
+    #         game.player_join(p)
+    #
+    #         if game.is_ongoing:
+    #             # notify the group if everyone is online
+    #             _ = await update.message.reply_text(
+    #                 "Everyone is online again, the game can continue!"
+    #             )
+    # else:
+    #     # player is not in the game, so we create a new Player
+    #     p = Player(user.id, user.full_name)
+    #     if game.phase != PHASE.LOBBY:
+    #         # game already started, cannot join
+    #         _ = await update.message.reply_text(
+    #             "The game has already started. You cannot join now."
+    #         )
+    #     else:
+    #         game.player_join(p)
+    #
+    #         text = (
+    #             f"{user.mention_html()} has joined the game!\n"
+    #             "Remember to start this bot in private chat\n"
+    #             f"Players waiting: {', '.join(str(p) for p in game.players)}"
+    #         )
+    #         _ = await update.message.reply_html(text)
+    #
+    #         if len(game.players) == 10:
+    #             await _routine_start_game(context, game)
 
 
 async def handle_set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -328,7 +349,7 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
     """
     Routine to start the game, setting up roles and notifying players.
     """
-    game.start_game()
+    # game.start_game() not necessary, already done in game model
 
     chat = await context.bot.get_chat(game.id)
 
@@ -345,12 +366,13 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
             text = f"Your role is: {player.role}.\n"  # now role can't be None
 
             text += player.role.description()  # role description
+            text += "\n\n"
 
             if not player.is_good() and player.role != ROLE.OBERON:
                 text += f"Your teammates are: {', '.join(str(p) for p in game.evil_list() if p != player)}.\n"
 
             if player.role == ROLE.MERLIN:
-                hidden = {ROLE.MORDRED, ROLE.OBERON}
+                hidden = {ROLE.MORDRED}
                 seekable = [
                     x
                     for x in game.evil_list()
@@ -389,8 +411,8 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
     info_txt += "Special roles:\n"
     info_txt += "\n".join(str(role) for role in game.special_roles)
 
-    info_txt += "Team sizes for turns:\n"
-    info_txt += "\n".join(f"( {i + 1}:{x} )" for i, x in enumerate(game.team_sizes))
+    info_txt += "\n\nTeam sizes for turns:\n"
+    info_txt += "\n".join(f"Turn {i + 1}: {x} players" for i, x in enumerate(game.team_sizes))
 
     if len(game.players) >= 7:
         info_txt += "Remember that fourth mission is special, you can make it successful even with a negative vote!\n"
@@ -409,7 +431,7 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
     """
     # notify players in the group about the voting phase
     text = (
-        f"Turn {game.turn + 1} has started!\n"
+        f"Turn {game.turn} has started!\n"
         f"Next leaders will be: {', '.join(str(p) for p in game.players[game.leader_idx + 1 :] + game.players[: game.leader_idx])}\n"
         f"Next team sizes: {', '.join(str(x) for x in game.team_sizes[game.turn :])}\n\n"
         f"{game.players[game.leader_idx].mention()} is the team leader for this round.\n"

@@ -50,7 +50,10 @@ class Game:
             else:
                 raise ValueError("Player is already in the game and online.")
         else:
-            # player is not in the game, so add them
+            # player is not in the game, so add them if game hasn't started yet
+            if self.is_ongoing:
+                raise ValueError("Cannot join the game after it has started.")
+
             self.players.append(player)
 
         if len(self.players) == MAX_PLAYERS and self.phase == PHASE.LOBBY:
