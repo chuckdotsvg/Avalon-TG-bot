@@ -119,13 +119,17 @@ async def handle_set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
         0, "None (no special roles)"
     )  # add the option to not use special roles
 
+    txt = (
+        "Select special roles. If you select None, default roles will be used: "
+        f"{', '.join(str(r) for r in MANDATORY_ROLES)}"
+    )
     # set roles for the players
     _ = await _send_selection_poll(
         context,
         game.id,
         game.creator.userid,
         special_roles_str,
-        "Select special roles. If you select None, no special roles will be used.",
+        txt,
         POLLTYPE.REGULAR,
         None,
     )
@@ -501,10 +505,9 @@ async def handle_select_special_roles(
         reply_markup=None,
     )
 
-    _ = await context.bot.forward_message(
+    _ = await context.bot.send_message(
         chat_id=game.id,
-        from_chat_id=game.creator.userid,
-        message_id=message_id,
+        text=f"Special roles set: {', '.join(str(r) for r in game.special_roles)}.\n",
     )
     _ = await context.bot.delete_message(
         chat_id=game.creator.userid,

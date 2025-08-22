@@ -39,7 +39,6 @@ class Game:
         Adds a player to the game.
         :param player: Player object to be added.
         """
-
         if len(self.players) >= MAX_PLAYERS:
             raise ValueError("Maximum number of players reached.")
 

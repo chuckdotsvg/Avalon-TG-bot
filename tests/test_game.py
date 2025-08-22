@@ -27,16 +27,20 @@ def started_game(game: Game, new_players: list[Player]) -> Game:
     game.start_game()
     return game
 
+
 @pytest.fixture
 def correct_special_roles() -> list[Role]:
     return list(MANDATORY_ROLES | {Role.PERCIVAL, Role.MORGANA})
+
 
 @pytest.fixture
 def too_many_evil_roles() -> list[Role]:
     return list(MANDATORY_ROLES | {Role.MORGANA, Role.PERCIVAL, Role.MORDRED})
 
+
 # TODO: add more good roles
 # def too_many_good_roles() -> list[Role]:
+
 
 def players(n: int) -> list[Player]:
     players: list[Player] = []
@@ -68,7 +72,7 @@ def test_game_initialization(game: Game):
     assert game.players == [game.creator]
     assert game.phase == PHASE.LOBBY
     assert game.turn == 0
-    assert game.votes == {  }
+    assert game.votes == {}
     assert game.missions == [None] * 5
     assert game.leader_idx == -1
 
@@ -119,7 +123,25 @@ def test_game_start(game: Game, new_players: list[Player]):
 
     game.start_game()
 
-def test_too_many_evil_special_roles(game: Game, new_players: list[Player], too_many_evil_roles: list[Role]):
+
+def test_set_special_roles(game: Game, new_players: list[Player]):
+    add_players_to_game(game, new_players)
+
+    assert set(game.special_roles) == MANDATORY_ROLES
+
+    new_roles = [Role.MORDRED, Role.PERCIVAL]
+    game.set_special_roles(new_roles)
+    new_roles.extend(MANDATORY_ROLES)
+    assert set(game.special_roles) == set(new_roles)
+
+    # set special roles to None
+    game.set_special_roles([])
+    assert set(game.special_roles) == MANDATORY_ROLES
+
+
+def test_too_many_evil_special_roles(
+    game: Game, new_players: list[Player], too_many_evil_roles: list[Role]
+):
     add_players_to_game(game, new_players)
 
     game.set_special_roles(too_many_evil_roles)
@@ -127,20 +149,27 @@ def test_too_many_evil_special_roles(game: Game, new_players: list[Player], too_
 
     assert raises(ValueError, game.start_game)
 
-def test_correct_special_roles(game: Game, new_players: list[Player], correct_special_roles: list[Role]):
+
+def test_correct_special_roles(
+    game: Game, new_players: list[Player], correct_special_roles: list[Role]
+):
     add_players_to_game(game, new_players)
 
     game.set_special_roles(correct_special_roles)
     game.start_game()
 
-    assert set(game.special_roles) == set(correct_special_roles)
+    assert set(game.special_roles) == set(correct_special_roles) | MANDATORY_ROLES
+
 
 @pytest.fixture
-def game_with_correct_extra_roles(game: Game, new_players: list[Player], correct_special_roles: list[Role]) -> Game:
+def game_with_correct_extra_roles(
+    game: Game, new_players: list[Player], correct_special_roles: list[Role]
+) -> Game:
     test_correct_special_roles(game, new_players, correct_special_roles)
 
     game.start_game()
     return game
+
 
 def test_empty_special_roles(game: Game, new_players: list[Player]):
     add_players_to_game(game, new_players)
@@ -149,6 +178,7 @@ def test_empty_special_roles(game: Game, new_players: list[Player]):
 
     assert set(game.special_roles) == set(MANDATORY_ROLES)
 
+
 @pytest.fixture
 def test_game_ongoing(game_with_correct_extra_roles: Game):
     assert game_with_correct_extra_roles.phase != PHASE.LOBBY
@@ -156,23 +186,34 @@ def test_game_ongoing(game_with_correct_extra_roles: Game):
     assert game_with_correct_extra_roles.leader_idx != -1
     np = len(game_with_correct_extra_roles.players)
     assert np >= MIN_PLAYERS
-    assert game_with_correct_extra_roles.team_sizes == PLAYERS_TO_RULES[np]["team_sizes"]
-    assert len(game_with_correct_extra_roles.evil_list()) == np - PLAYERS_TO_RULES[np]["num_goods"]
+    assert (
+        game_with_correct_extra_roles.team_sizes == PLAYERS_TO_RULES[np]["team_sizes"]
+    )
+    assert (
+        len(game_with_correct_extra_roles.evil_list())
+        == np - PLAYERS_TO_RULES[np]["num_goods"]
+    )
 
     players_roles = set(p.role for p in game_with_correct_extra_roles.players)
     assert None not in players_roles
     # here roles cannot be None, because they are set in start_game
-    special_roles = set(x for x in players_roles if x.is_special)   # pyright: ignore[reportOptionalMemberAccess]
+    special_roles = set(x for x in players_roles if x.is_special)  # pyright: ignore[reportOptionalMemberAccess]
 
     assert set(special_roles) == set(game_with_correct_extra_roles.special_roles)
 
+
 def test_pass_creator(started_game: Game):
     idx_creator = started_game.players.index(started_game.creator)
-    new_creator = started_game.players[idx_creator - 1] # another player
+    new_creator = started_game.players[idx_creator - 1]  # another player
 
-    assert raises(ValueError, started_game.pass_creator, started_game.players[idx_creator])
-    assert raises(ValueError, started_game.pass_creator, Player(999999999, "NonExistent"))
+    assert raises(
+        ValueError, started_game.pass_creator, started_game.players[idx_creator]
+    )
+    assert raises(
+        ValueError, started_game.pass_creator, Player(999999999, "NonExistent")
+    )
     started_game.pass_creator(new_creator)
+
 
 # def test_game_set_team(test_game_ongoing: Game):
 #     assert test_game_ongoing.phase == PHASE.BUILD_TEAM
