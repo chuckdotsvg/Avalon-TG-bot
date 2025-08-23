@@ -131,9 +131,9 @@ async def handle_set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if (game := existingGames.get(group_id)) is None:
         raise KeyError("There is no game in this group. Please create one first.")
 
-    # check if the requesting user is the creator
-    if update.effective_user.id != game.creator.userid:
-        raise ValueError("Only the creator can set roles.")
+    # check if the requesting user is the host
+    if update.effective_user.id != game.host.userid:
+        raise ValueError("Only the host can set roles.")
 
     if game.is_ongoing:
         raise ValueError("The game is already ongoing.")
@@ -154,7 +154,7 @@ async def handle_set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _ = await _send_selection_poll(
         context,
         game.id,
-        game.creator.userid,
+        game.host.userid,
         special_roles_str,
         txt,
         POLLTYPE.REGULAR,
@@ -166,51 +166,6 @@ async def handle_leave_game(update: Update):
     """
     Handle a player leaving the game.
     """
-    # if not update.message:
-    #     return
-    # group_id = update.message.chat_id
-    #
-    # # check if there is a game in the group
-    # if group_id in existingGames.keys():
-    #     game = existingGames[group_id]
-    #
-    #     # safety check
-    #     if not (user := update.effective_user):
-    #         return
-    #
-    #     if (player := game.lookup_player(user.id)) is None:
-    #         _ = await update.message.reply_text(
-    #             "You are not in the game. Please join first."
-    #         )
-    #     else:
-    #         # notify the group about the new creator, in case the old one left
-    #         # TODO: highlight the (new) creator
-    #         old_creator_name = str(game.creator)
-    #
-    #         # if there are no players left, remove the Game
-    #         if not game.player_leave(player):
-    #             # remove the game from the existing games
-    #             del existingGames[group_id]
-    #
-    #             text = "All players have left the game. The game has been removed."
-    #
-    #         else:
-    #             text = (
-    #                 f"{user.mention_html()} has left the game!\n"
-    #                 f" Players waiting: {', '.join(str(p) for p in game.players if p.is_online)}\n"
-    #             )
-    #             if old_creator_name != str(game.creator):
-    #                 text += (
-    #                     "The game creator has left!\n"
-    #                     f"{game.creator.mention()} is the new creator.\n"
-    #                 )
-    #
-    #         _ = await update.message.reply_html(text)
-    #
-    # else:
-    #     _ = await update.message.reply_text(
-    #         "There is no game in this group. Please create one first."
-    #     )
 
     group_id = update.message.chat_id
     user = update.effective_user
@@ -219,8 +174,8 @@ async def handle_leave_game(update: Update):
 
     player = game.lookup_player(user.id)
 
-    # TODO: highlight the (new) creator
-    old_creator_name = str(game.creator)
+    # TODO: highlight the (new) host
+    old_host_name = str(game.host)
 
     # if there are no players left, remove the Game
     if not game.player_leave(player):
@@ -234,28 +189,28 @@ async def handle_leave_game(update: Update):
             f"{user.mention_html()} has left the game!\n"
             f" Players waiting: {', '.join(str(p) for p in game.players if p.is_online)}\n"
         )
-        # notify the group about the new creator, in case the old one left
-        if old_creator_name != str(game.creator):
+        # notify the group about the new host, in case the old one left
+        if old_host_name != str(game.host):
             text += (
-                "The game creator has left!\n"
-                f"{game.creator.mention()} is the new creator.\n"
+                "The game host has left!\n"
+                f"{game.host.mention()} is the new host.\n"
             )
 
     _ = await update.message.reply_html(text)
 
 
-async def handle_pass_creator(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_pass_host(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Handle the passing of the game creator role to another player.
+    Handle the passing of the game host role to another player.
     """
 
     group_id = update.message.chat_id
     game = existingGames[group_id]
 
-    if game.lookup_player(update.effective_user.id) is not game.creator:
-        raise KeyError("Only the creator can pass the host.")
+    if game.lookup_player(update.effective_user.id) is not game.host:
+        raise KeyError("Only the host can pass the host.")
 
-    candidates = [str(x) for x in game.players if x is not game.creator]
+    candidates = [str(x) for x in game.players if x is not game.host]
 
     if len(candidates) == 0:
         raise ValueError(
@@ -263,12 +218,12 @@ async def handle_pass_creator(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
     elif len(candidates) == 1:
         # if there is only one candidate, pass the host immediately
-        await _routine_pass_creator(0, game, context)
+        await _routine_pass_host(0, game, context)
     else:
         _ = await _send_selection_poll(
             context,
             game.id,
-            game.creator.userid,
+            game.host.userid,
             candidates,
             "Select a new host",
             POLLTYPE.REGULAR,
@@ -282,23 +237,12 @@ async def handle_start_game(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     """
-    Handle the start of the game, checking for conditions such as creator and player count.
+    Handle the start of the game, checking for conditions such as host and player count.
     """
-    # if not update.message or not update.effective_user:
-    #     # TODO: handle telegram errors
-    #     return
-
-    # # check if there is a game in the group
-    # if (group_id := update.message.chat_id) not in existingGames.keys():
-    #     _ = await update.message.reply_text(
-    #         "There is no game in this group. Please create one first."
-    #     )
-    #     return
-
     game = existingGames[update.message.chat_id]
 
     # check if the requesting user is the creator
-    if update.effective_user.id != game.creator.userid:
+    if update.effective_user.id != game.host.userid:
         raise ValueError("Only the creator can start the game.")
 
     # check if there are enough players
@@ -318,34 +262,13 @@ async def handle_delete_game(update: Update):
     """
     Handle the deletion of a game.
     """
-    # if not update.message or not update.effective_user:
-    #     return
-    #
-    # group_id = update.message.chat_id
-    #
-    # # check if there is a game in the group
-    # if group_id in existingGames.keys():
-    #     game = existingGames[group_id]
-    #
-    #     # check if the requesting user is the creator
-    #     if update.effective_user.id != game.creator.userid:
-    #         _ = await update.message.reply_text("Only the creator can delete the game.")
-    #         return
-    #
-    #     # remove the game from the existing games
-    #     del existingGames[group_id]
-    #
-    #     _ = await update.message.reply_text("The game has been deleted.")
-    # else:
-    #     _ = await update.message.reply_text("There is no game in this group.")
-
     group_id = update.message.chat_id
 
     if (game := existingGames.get(group_id)) is None:
         raise KeyError("There is no game in this group. Please create one first.")
 
-    if update.effective_user.id != game.creator.userid:
-        raise ValueError("Only the creator can delete the game.")
+    if update.effective_user.id != game.host.userid:
+        raise ValueError("Only the host can delete the game.")
 
     del existingGames[group_id]
     _ = await update.message.reply_text("The game has been deleted.")
@@ -546,12 +469,12 @@ async def handle_select_special_roles(
 
     # not necessary to stop the poll
     _ = await context.bot.delete_message(
-        chat_id=game.creator.userid,
+        chat_id=game.host.userid,
         message_id=message_id,
     )
 
 
-async def handle_pass_creator_choice(
+async def handle_pass_host_choice(
     answer: tuple[int, ...],
     message_id: int,
     context: ContextTypes.DEFAULT_TYPE,
@@ -563,26 +486,26 @@ async def handle_pass_creator_choice(
     # delete the original message with the poll
     # not necessary to stop the poll
     _ = await context.bot.delete_message(
-        chat_id=game.creator.userid,
+        chat_id=game.host.userid,
         message_id=message_id,
     )
 
-    await _routine_pass_creator(answer[0], game, context)
+    await _routine_pass_host(answer[0], game, context)
 
 
-async def _routine_pass_creator(
-    new_creator_idx: int, game: Game, context: ContextTypes.DEFAULT_TYPE
+async def _routine_pass_host(
+    new_host_idx: int, game: Game, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """
-    Routine to pass the game creator role to a new player.
+    Routine to pass the game host role to a new player.
     """
-    candidates = [x for x in game.players if x != game.creator]
+    candidates = [x for x in game.players if x != game.host]
 
-    game.pass_creator(candidates[new_creator_idx])
+    game.pass_host(candidates[new_host_idx])
 
     _ = await context.bot.send_message(
         chat_id=game.id,
-        text=f"{game.creator.mention()} is the new host.",
+        text=f"{game.host.mention()} is the new host.",
         parse_mode="HTML",
     )
 

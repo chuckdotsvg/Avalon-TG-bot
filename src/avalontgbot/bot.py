@@ -20,8 +20,8 @@ from .controller import (
     handle_delete_game,
     handle_join_game,
     handle_leave_game,
-    handle_pass_creator,
-    handle_pass_creator_choice,
+    handle_pass_host,
+    handle_pass_host_choice,
     handle_select_special_roles,
     handle_set_roles,
     handle_start_game,
@@ -126,10 +126,10 @@ async def set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
 
-async def pass_creator(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def pass_host(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Set roles for the game."""
     try:
-        await handle_pass_creator(update, context)
+        await handle_pass_host(update, context)
     except (ValueError, KeyError) as e:
         logger.error(f"Error in set_roles: {e}")
         _ = await update.effective_message.reply_text(str(e))
@@ -161,10 +161,10 @@ async def receive_poll_answer(
             game = existingGames[game_id]
 
             if not poll.allows_multiple_answers:
-                await handle_pass_creator_choice(
+                await handle_pass_host_choice(
                     answer.option_ids, poll_msg_id, context, game
                 )
-            if game.phase == PHASE.BUILD_TEAM:
+            elif game.phase == PHASE.BUILD_TEAM:
                 await handle_build_team_answer(
                     answer.option_ids, poll_msg_id, context, game
                 )
@@ -196,7 +196,7 @@ def main() -> None:
     application.add_handler(CommandHandler("delete", delete_game))
     application.add_handler(CommandHandler("rules", rules))
     application.add_handler(CommandHandler("setroles", set_roles))
-    application.add_handler(CommandHandler("passcreator", pass_creator))
+    application.add_handler(CommandHandler("passhost", pass_host))
 
     application.add_handler(CallbackQueryHandler(button_vote))
     application.add_handler(PollAnswerHandler(receive_poll_answer))

@@ -26,7 +26,7 @@ class Game:
         self.winner: bool | None = None
         self.rejection_count: int = 0
         self.votes: dict[Player, bool] = {}
-        self.creator: Player = creator
+        self.host: Player = creator
         self._players: list[Player] = [creator]
         self.team: list[Player] = []
         self.leader_idx: int = -1
@@ -77,23 +77,23 @@ class Game:
             # if the game is in lobby, remove the player from the game
             del self.players[index]
 
-            # if the creator leaves in lobby, give the command to another player
-            if self.creator == player and len(self.players) > 0:
-                self.creator = self.players[random.randrange(len(self.players))]
+            # if the host leaves in lobby, give the command to another player
+            if self.host == player and len(self.players) > 0:
+                self.host = self.players[random.randrange(len(self.players))]
 
         return any(p.is_online for p in self.players)
 
-    def pass_creator(self, player: Player):
+    def pass_host(self, player: Player):
         """
-        Passes the creator role to another player.
-        :param player: Player object to whom the creator role is passed.
+        Passes the host role to another player.
+        :param player: Player object to whom the host role is passed.
         """
         if player not in self.players:
             raise ValueError("Player not in game.")
-        elif player == self.creator:
-            raise ValueError("You are already the creator of the game!")
+        elif player == self.host:
+            raise ValueError("You are already the host of the game!")
 
-        self.creator = player
+        self.host = player
 
     def __update_winner(self):
         temp_winner, temp_win_count = Counter(self.missions).most_common(1)[0]

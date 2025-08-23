@@ -17,14 +17,6 @@ class Player:
         """
         return f'<a href="tg://user?id={self.userid}">{self.tg_name}</a>'
 
-    # def is_creator(self, game: Game) -> bool:
-    #     """
-    #     Checks if the player is the creator of the game.
-    #     :param game: The game instance to check against.
-    #     :return: True if the player is the creator, False otherwise.
-    #     """
-    #     return self.userid == game.creator.userid
-
     def is_good(self) -> bool:
         """
         Checks if the player's role is a good role.

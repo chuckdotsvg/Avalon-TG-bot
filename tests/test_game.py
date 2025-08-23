@@ -67,9 +67,9 @@ def new_players() -> list[Player]:
 
 
 def test_game_initialization(game: Game):
-    assert game.creator.userid == 123456789
+    assert game.host.userid == 123456789
     assert game.id == 234567891
-    assert game.players == [game.creator]
+    assert game.players == [game.host]
     assert game.phase == PHASE.LOBBY
     assert game.turn == -1
     assert game.votes == {}
@@ -203,16 +203,16 @@ def test_game_ongoing(game_with_correct_extra_roles: Game):
 
 
 def test_pass_creator(started_game: Game):
-    idx_creator = started_game.players.index(started_game.creator)
+    idx_creator = started_game.players.index(started_game.host)
     new_creator = started_game.players[idx_creator - 1]  # another player
 
     assert raises(
-        ValueError, started_game.pass_creator, started_game.players[idx_creator]
+        ValueError, started_game.pass_host, started_game.players[idx_creator]
     )
     assert raises(
-        ValueError, started_game.pass_creator, Player(999999999, "NonExistent")
+        ValueError, started_game.pass_host, Player(999999999, "NonExistent")
     )
-    started_game.pass_creator(new_creator)
+    started_game.pass_host(new_creator)
 
 
 # def test_game_set_team(test_game_ongoing: Game):
