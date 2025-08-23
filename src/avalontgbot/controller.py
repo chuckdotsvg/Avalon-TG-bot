@@ -86,6 +86,9 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
     )
 
+    if len(game.players) == 10:
+        await _routine_start_game(context, game)
+
     # if p is not None:
     #     if p.is_online:  # player is already in the game
     #         _ = await update.message.reply_text("You are already in the game")
@@ -349,7 +352,7 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
     """
     Routine to start the game, setting up roles and notifying players.
     """
-    # game.start_game() not necessary, already done in game model
+    game.start_game()
 
     chat = await context.bot.get_chat(game.id)
 

@@ -56,9 +56,9 @@ class Game:
 
             self.players.append(player)
 
-        if len(self.players) == MAX_PLAYERS and self.phase == PHASE.LOBBY:
-            # if there are enough players, start the game automatically
-            self.start_game()
+        # if len(self.players) == MAX_PLAYERS and self.phase == PHASE.LOBBY:
+        #     # if there are enough players, start the game automatically
+        #     self.start_game()
 
     def player_leave(self, player: Player) -> bool:
         """
