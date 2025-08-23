@@ -203,10 +203,13 @@ class Game:
         if self.phase != PHASE.LOBBY:
             raise ValueError("Cannot set special roles after the game has started.")
 
-        set_roles = set(roles)
-        set_roles.update(MANDATORY_ROLES)
+        if ROLE.MORGANA in roles and ROLE.PERCIVAL not in roles:
+            raise ValueError("Percival must be included if Morgana is included.")
 
-        self.special_roles = list(set_roles)
+        roles_set = set(roles)
+        roles_set.update(MANDATORY_ROLES)
+
+        self.special_roles = list(roles_set)
 
     def lookup_player(self, id: int) -> Player | None:
         """

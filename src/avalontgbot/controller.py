@@ -89,38 +89,6 @@ async def handle_join_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(game.players) == 10:
         await _routine_start_game(context, game)
 
-    # if p is not None:
-    #     if p.is_online:  # player is already in the game
-    #         _ = await update.message.reply_text("You are already in the game")
-    #     elif not game.is_ongoing:  # player is in the game, but not online
-    #         game.player_join(p)
-    #
-    #         if game.is_ongoing:
-    #             # notify the group if everyone is online
-    #             _ = await update.message.reply_text(
-    #                 "Everyone is online again, the game can continue!"
-    #             )
-    # else:
-    #     # player is not in the game, so we create a new Player
-    #     p = Player(user.id, user.full_name)
-    #     if game.phase != PHASE.LOBBY:
-    #         # game already started, cannot join
-    #         _ = await update.message.reply_text(
-    #             "The game has already started. You cannot join now."
-    #         )
-    #     else:
-    #         game.player_join(p)
-    #
-    #         text = (
-    #             f"{user.mention_html()} has joined the game!\n"
-    #             "Remember to start this bot in private chat\n"
-    #             f"Players waiting: {', '.join(str(p) for p in game.players)}"
-    #         )
-    #         _ = await update.message.reply_html(text)
-    #
-    #         if len(game.players) == 10:
-    #             await _routine_start_game(context, game)
-
 
 async def handle_set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
