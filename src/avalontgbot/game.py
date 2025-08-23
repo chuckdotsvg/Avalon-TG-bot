@@ -21,7 +21,7 @@ class Game:
         """
 
         self._id: int = id
-        self.turn: int = 0
+        self.turn: int = -1
         self.missions: list[bool | None] = [None, None, None, None, None]
         self.winner: bool | None = None
         self.rejection_count: int = 0
@@ -247,9 +247,11 @@ class Game:
         # assign roles
         self.__set_roles()
 
+        # shuffle players to ensure randomness
         random.shuffle(self.players)
 
-        self.leader_idx = random.randrange(num_players)
+        # set to a non negative leader index
+        self.leader_idx = 0
 
         self.turn += 1
         # finally change the phase to TEAM_BUILD
@@ -259,6 +261,9 @@ class Game:
         """
         Assigns roles to players based on the game rules.
         """
+        # shuffle the special roles to ensure randomness
+        random.shuffle(self.special_roles)
+
         num_players = len(self.players)
         num_special = len(self.special_roles)
         num_good = PLAYERS_TO_RULES[num_players]["num_goods"]

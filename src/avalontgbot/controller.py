@@ -135,6 +135,9 @@ async def handle_set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != game.creator.userid:
         raise ValueError("Only the creator can set roles.")
 
+    if game.is_ongoing:
+        raise ValueError("The game is already ongoing.")
+
     special_roles_str = list(
         str(x) for x in ROLE if x.is_special and x not in MANDATORY_ROLES
     )
@@ -415,7 +418,9 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
     info_txt += "\n".join(str(role) for role in game.special_roles)
 
     info_txt += "\n\nTeam sizes for turns:\n"
-    info_txt += "\n".join(f"Turn {i + 1}: {x} players" for i, x in enumerate(game.team_sizes))
+    info_txt += "\n".join(
+        f"Turn {i + 1}: {x} players" for i, x in enumerate(game.team_sizes)
+    )
 
     if len(game.players) >= 7:
         info_txt += "Remember that fourth mission is special, you can make it successful even with a negative vote!\n"
@@ -433,12 +438,21 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
     Routine to prepare the voting phase of the game (i.e. sending the poll to the team leader).
     """
     # notify players in the group about the voting phase
+    # 0 indexed turn, so +1 for readable format
+    human_turn = game.turn + 1
+
     text = (
-        f"Turn {game.turn} has started!\n"
+        f"Turn {human_turn} has started!\n"
         f"Next leaders will be: {', '.join(str(p) for p in game.players[game.leader_idx + 1 :] + game.players[: game.leader_idx])}\n"
-        f"Next team sizes: {', '.join(str(x) for x in game.team_sizes[game.turn :])}\n\n"
+        # check for next turns
         f"{game.players[game.leader_idx].mention()} is the team leader for this round.\n"
         "Wait for leader's team proposal.\n"
+    )
+
+    text += (
+        f"Next team sizes: {', '.join(str(x) for x in game.team_sizes[human_turn:])}\n\n"
+        if human_turn < len(game.team_sizes)
+        else "\n"
     )
 
     if game.is_special_turn():
@@ -455,6 +469,7 @@ async def _routine_pre_team_building(context: ContextTypes.DEFAULT_TYPE, game: G
         game.id,
         game.players[game.leader_idx].userid,
         [str(x) for x in game.players],
+        # turn - 1 cause of 0-indexing
         f"Leader, select a team of {game.team_sizes[game.turn]} players",
         POLLTYPE.REGULAR,
         None,
@@ -524,16 +539,12 @@ async def handle_select_special_roles(
 
     game.set_special_roles(selected_roles)
 
-    _ = await context.bot.stop_poll(
-        chat_id=game.creator.userid,
-        message_id=message_id,
-        reply_markup=None,
-    )
-
     _ = await context.bot.send_message(
         chat_id=game.id,
         text=f"Special roles set: {', '.join(str(r) for r in game.special_roles)}.\n",
     )
+
+    # not necessary to stop the poll
     _ = await context.bot.delete_message(
         chat_id=game.creator.userid,
         message_id=message_id,
@@ -549,13 +560,8 @@ async def handle_pass_creator_choice(
     """
     Handle the choice of a new game creator.
     """
-    _ = await context.bot.stop_poll(
-        chat_id=game.creator.userid,
-        message_id=message_id,
-        reply_markup=None,
-    )
-
     # delete the original message with the poll
+    # not necessary to stop the poll
     _ = await context.bot.delete_message(
         chat_id=game.creator.userid,
         message_id=message_id,

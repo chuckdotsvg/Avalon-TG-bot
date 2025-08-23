@@ -71,7 +71,7 @@ def test_game_initialization(game: Game):
     assert game.id == 234567891
     assert game.players == [game.creator]
     assert game.phase == PHASE.LOBBY
-    assert game.turn == 0
+    assert game.turn == -1
     assert game.votes == {}
     assert game.missions == [None] * 5
     assert game.leader_idx == -1
@@ -102,7 +102,7 @@ def test_autostart(game: Game, too_many_players: list[Player]) -> Game:
 
     assert game.phase != PHASE.LOBBY
     assert len(game.players) == MAX_PLAYERS
-    assert game.turn == 1
+    assert game.turn == 0
 
     return game
 

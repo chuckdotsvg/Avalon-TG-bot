@@ -114,6 +114,7 @@ async def delete_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         logger.error(f"Error in delete_game: {e}")
         _ = await update.effective_message.reply_text(str(e))
 
+
 async def set_roles(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Set roles for the game."""
     try:
@@ -177,7 +178,10 @@ async def receive_poll_answer(
                 )
     except Exception as e:
         logger.error(f"Error in receive_poll_answer: {e}")
-        _ = await update.effective_message.reply_text(str(e))
+        _ = await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=str(e),
+        )
 
 
 def main() -> None:
