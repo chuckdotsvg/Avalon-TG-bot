@@ -269,17 +269,17 @@ async def _routine_start_game(context: ContextTypes.DEFAULT_TYPE, game: Game):
                 text += f"Your teammates are: {', '.join(str(p) for p in game.evil_list() if p != player)}.\n"
 
             if player.role == ROLE.MERLIN:
-                hidden = {ROLE.MORDRED}
+                hidden = game.roles_to_players({ ROLE.MORDRED })
                 seekable = [
                     x
                     for x in game.evil_list()
-                    if x not in game.roles_to_players(hidden)
+                    if x not in hidden
                 ]
 
                 text += f"Evil team is composed of: {', '.join(str(p) for p in seekable)}.\n"
 
                 if len(hidden) > 0:
-                    text += f"But be careful about the hidden presence of {'and '.join(str(r) for r in set(game.special_roles) & hidden)}!\n"
+                    text += f"But be careful about the hidden presence of {'and '.join(str(r) for r in set(game.special_roles) & set(hidden))}!\n"
             elif player.role == ROLE.PERCIVAL:
                 merlins = game.roles_to_players({ROLE.MERLIN, ROLE.MORGANA})
                 text += "You can see Merlin"

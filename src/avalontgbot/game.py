@@ -354,7 +354,7 @@ class Game:
         return [
             p
             for p in self.players
-            if not p.is_good() and (not real or p.role != ROLE.MORDRED)
+            if not p.is_good() and (not real or p.role != ROLE.OBERON)
         ]
 
     def roles_to_players(self, roles: set[ROLE]) -> list[Player]:
