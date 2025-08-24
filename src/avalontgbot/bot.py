@@ -13,6 +13,8 @@ from telegram.ext import (
     PollAnswerHandler,
 )
 
+from avalontgbot.constants import PLAYERS_TO_RULES
+
 from .controller import (
     button_vote_handler,
     handle_assassin_choice,
@@ -48,6 +50,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     text = "Hi, I'm your bot for playing The Resistance!\n"
     text += "Add me to a group chat to play with friends!\n"
+    text += "Don't forget to start me in private chat to receive your role information.\n\n"
     text += "Use /help to see the available commands."
 
     await message.reply_text(text) if message else None
@@ -91,6 +94,12 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = "Rules not found"
     else:
         text = path.read_text(encoding="utf-8").strip()
+
+    text += "\n\n Here are the number of players with the corresponding number of good players:\n"
+    for players, rules in PLAYERS_TO_RULES.items():
+        goods = rules["num_goods"]
+        text += f"\n - {players} players: {goods} good, {players-goods} evil"
+    text += "\n\n Use /inforoles role_name to get information about a specific role."
 
     await update.message.reply_html(text) if update.message else None
 
