@@ -4,6 +4,7 @@ import pathlib
 
 from dotenv import load_dotenv
 from telegram import Update
+from telegram.error import BadRequest
 from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
@@ -28,6 +29,7 @@ from .controller import (
     existingGames,
 )
 from .gamephase import GamePhase as PHASE
+from .role import Role
 
 _ = load_dotenv()
 telegram_token = os.getenv("TELEGRAM_TOKEN", "")
@@ -54,14 +56,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when the command /help is issued."""
 
-    text = (
-        "In order to use this bot, add it to a group chat and use the commands below.\n"
-    )
-    text += "Here are the available commands:\n"
+    text = "In order to use this bot, add it to a group chat and use the commands below.\n\n"
 
-    text += "suca"
+    # open commands.txt and read the content
+    path = pathlib.Path(__file__).parent.parent.parent / "resources/commands.txt"
+    if not path.exists():
+        text += "Commands not found"
+    else:
+        text += path.read_text(encoding="utf-8").strip()
 
     await update.message.reply_text(text) if update.message else None
+
+async def inforoles(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send a message with the roles information considering the name given."""
+    try:
+        role_name = context.args[0].lower()
+        role = next(r for r in Role if r.name.lower() == role_name)
+        _ = await update.effective_message.reply_text(text=role.description(), parse_mode="HTML")
+    except (IndexError, ValueError):
+        logger.error(f"Error in inforoles: No role name provided")
+        txt = ("Please provide a role name after the command, e.g. /inforoles Merlin\n"
+            f"Available roles: {', '.join([str(r) for r in Role])}"
+               )
+        _ = await update.effective_message.reply_text(txt)
+    except StopIteration as e:
+        logger.error(f"Error in inforoles: {e}")
+        _ = await update.effective_message.reply_text("Role not found. Please check the role name and try again.")
 
 
 async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -176,10 +196,19 @@ async def receive_poll_answer(
                 await handle_select_special_roles(
                     answer.option_ids, poll_msg_id, context, game
                 )
-    except Exception as e:
+    except BadRequest as e:
+        logger.error(f"BadRequest in receive_poll_answer: {e}")
+        _ = await context.bot.delete_message(
+            # polls are private, so we send the message to the user
+            chat_id=update.effective_sender.id,
+            # if unbound is because the bot was restarted and the poll is not in bot_data anymore
+            message_id=poll_msg_id,  # pyright: ignore[reportPossiblyUnboundVariable]
+        )
+    except (ValueError, Exception) as e:
         logger.error(f"Error in receive_poll_answer: {e}")
         _ = await context.bot.send_message(
-            chat_id=update.effective_chat.id,
+            # polls are private, so we send the message to the user
+            chat_id=update.effective_sender.id,
             text=str(e),
         )
 
@@ -197,6 +226,7 @@ def main() -> None:
     application.add_handler(CommandHandler("rules", rules))
     application.add_handler(CommandHandler("setroles", set_roles))
     application.add_handler(CommandHandler("passhost", pass_host))
+    application.add_handler(CommandHandler("inforoles", inforoles))
 
     application.add_handler(CallbackQueryHandler(button_vote))
     application.add_handler(PollAnswerHandler(receive_poll_answer))
