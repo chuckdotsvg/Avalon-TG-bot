@@ -4,16 +4,23 @@ A Telegram bot that implements the social deduction game **Avalon: The Resistanc
 
 ## Setup
 
+1. Create a virtual environment with a name you want, and activate it:
+   ```bash
+   python -m venv <venv_name>
+   cd <venv_name>
+   source ./bin/activate
+   ```
+
 1. Clone the repository:
 
    ```bash
    git clone https://github.com/chuckdotsvg/Avalon-TG-bot
-   cd Avalon-TG-bot
    ```
 
 2. Install dependencies:
 
    ```bash
+   cd Avalon-TG-bot
    pip install -r requirements.txt
    ```
 
