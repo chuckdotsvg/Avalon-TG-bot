@@ -1,6 +1,7 @@
 import logging
 import os
 import pathlib
+import random
 
 from dotenv import load_dotenv
 from telegram import Update
@@ -221,6 +222,21 @@ async def receive_poll_answer(
             text=str(e),
         )
 
+async def john_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """50%: join game, 50%: send random mp4 as gif from john folder."""
+    if random.choice([True, False]):
+        await join_game(update, context)
+    else:
+        # Percorso relativo alla root del progetto
+        project_root = pathlib.Path(__file__).parent.parent.parent
+        john_folder = project_root / "resources" / "john"
+        videos = list(john_folder.glob("*.mp4"))
+        if not videos:
+            await update.message.reply_text("Nessun video trovato nella cartella john.")
+            return
+        video_path = random.choice(videos)
+        with open(video_path, "rb") as video_file:
+            await context.bot.send_animation(chat_id=update.effective_chat.id, animation=video_file)
 
 def main() -> None:
     application = ApplicationBuilder().token(telegram_token).build()
@@ -236,7 +252,8 @@ def main() -> None:
     application.add_handler(CommandHandler("setroles", set_roles))
     application.add_handler(CommandHandler("passhost", pass_host))
     application.add_handler(CommandHandler("inforoles", inforoles))
-
+    application.add_handler(CommandHandler("john", john_command))
+    
     application.add_handler(CallbackQueryHandler(button_vote))
     application.add_handler(PollAnswerHandler(receive_poll_answer))
 
